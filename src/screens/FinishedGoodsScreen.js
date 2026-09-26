@@ -140,8 +140,8 @@ export default function FinishedGoodsScreen({ navigation }) {
             </View>
           </TouchableOpacity>
           <View style={{marginTop: 15}}>
-            <Text style={styles.pageTitle}>Almacén Central</Text>
-            <Text style={styles.pageSubtitle}>Monitor de stock y registro de mermas</Text>
+            <Text style={styles.pageTitle}>Almacén de Productos Terminados</Text>
+            <Text style={styles.pageSubtitle}>Stock disponible para la venta de platos y bebidas</Text>
           </View>
         </View>
 

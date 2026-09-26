@@ -92,8 +92,8 @@ export default function WipScreen({ navigation }) {
             </View>
           </TouchableOpacity>
           <View style={{marginTop: 15}}>
-            <Text style={styles.pageTitle}>Almacén Central</Text>
-            <Text style={styles.pageSubtitle}>Monitor de stock y registro de mermas</Text>
+            <Text style={styles.pageTitle}>Almacén de Preparaciones (En Proceso)</Text>
+            <Text style={styles.pageSubtitle}>Inventario de salsas, bases y preparaciones intermedias</Text>
           </View>
         </View>
 

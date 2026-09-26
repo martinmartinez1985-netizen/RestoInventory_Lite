@@ -326,11 +326,34 @@ export const createOrder = (type, tableId = null, customerName = null) => {
 };
 
 export const addRawMaterial = (ing) => {
-  globalRawMaterials.push({
-    id: 'RAW-' + Date.now().toString().slice(-4),
-    baseStock: 0,
+  const item = {
+    id: ing.id || ('RAW-' + Date.now().toString().slice(-4)),
+    baseStock: ing.baseStock !== undefined ? parseFloat(ing.baseStock) : 0,
     ...ing
-  });
+  };
+  globalRawMaterials.push(item);
+  persistData();
+  return item;
+};
+
+export const updateRawMaterial = (id, updatedFields) => {
+  const item = globalRawMaterials.find(i => i.id === id);
+  if (item) {
+    Object.assign(item, updatedFields);
+    persistData();
+    return item;
+  }
+  return null;
+};
+
+export const deleteRawMaterial = (id) => {
+  const idx = globalRawMaterials.findIndex(i => i.id === id);
+  if (idx !== -1) {
+    globalRawMaterials.splice(idx, 1);
+    persistData();
+    return true;
+  }
+  return false;
 };
 
 import { Platform } from 'react-native';
