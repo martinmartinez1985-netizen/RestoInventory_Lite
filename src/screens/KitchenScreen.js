@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalActiveOrders } from '../store/mockDb';
+import TicketModal from '../components/TicketModal';
 
 export default function KitchenScreen({ navigation }) {
   const [selectedKitchenOrder, setSelectedKitchenOrder] = useState(null);
@@ -18,8 +19,8 @@ export default function KitchenScreen({ navigation }) {
   }, []);
 
   // Filtrar órdenes que tengan al menos 1 ítem enviado a cocina y no despachado
-  const pendingOrders = globalActiveOrders.filter(order => 
-    order.items.some(item => item.sentToKitchen === true && !item.kitchenReady)
+  const pendingOrders = (globalActiveOrders || []).filter(order => 
+    order.items && order.items.some(item => item.sentToKitchen === true && !item.kitchenReady)
   );
 
   const markItemReady = (orderId, itemIndex) => {
@@ -66,7 +67,7 @@ export default function KitchenScreen({ navigation }) {
                 <View style={[styles.ticketHeader, order.type === 'delivery' ? {backgroundColor: '#ef4444'} : (order.type === 'dine_in' ? {backgroundColor: '#10b981'} : {backgroundColor: '#f59e0b'})]}>
                     <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
                       <Text style={styles.ticketTitle}>
-                        {order.type === 'dine_in' ? `Mesa ${order.tableId.replace('T', '')}` : (order.type === 'delivery' ? 'Delivery' : 'Pick-up')}
+                        {order.type === 'dine_in' ? `Mesa ${order.tableId ? order.tableId.replace('T', '') : '1'}` : (order.type === 'delivery' ? 'Delivery' : 'Pick-up')}
                       </Text>
                       <Text style={styles.ticketTime}>{new Date(order.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</Text>
                     </View>
