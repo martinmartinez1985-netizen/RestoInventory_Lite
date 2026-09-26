@@ -61,7 +61,7 @@ export default function TicketModal({ visible, type = 'kitchen', order, onClose,
         <body>
           <h2 style="font-size: 22px;">COMANDA DE COCINA</h2>
           <h1 style="text-align: center; font-size: 32px; margin: 8px 0;">
-            ${order.type === 'dine_in' ? 'MESA ' + (order.tableId ? order.tableId.replace('T', '') : '1') : (order.type === 'delivery' ? 'DELIVERY' : 'PARA LLEVAR')}
+            ${order.type === 'dine_in' ? 'MESA ' + (order.tableId !== undefined && order.tableId !== null ? String(order.tableId).replace('T', '') : '1') : (order.type === 'delivery' ? 'DELIVERY' : 'PARA LLEVAR')}
           </h1>
           <div class="divider"></div>
           <p><strong>ORDEN:</strong> ${order.id}</p>
@@ -114,7 +114,7 @@ export default function TicketModal({ visible, type = 'kitchen', order, onClose,
           <p style="font-size: 12px;"><strong>${isPreAccount ? 'PRE-CUENTA / CONSUMO' : 'FACTURA DE VENTA'}</strong></p>
           <p style="font-size: 12px;">ORDEN: ${order.id}</p>
           <p style="font-size: 11px;">FECHA: ${dateStr}</p>
-          <p style="font-size: 11px;">UBICACIÓN: ${order.type === 'dine_in' ? 'Mesa ' + (order.tableId ? order.tableId.replace('T', '') : '1') : (order.type === 'delivery' ? 'Delivery' : 'Para Llevar')}</p>
+          <p style="font-size: 11px;">UBICACIÓN: ${order.type === 'dine_in' ? 'Mesa ' + (order.tableId !== undefined && order.tableId !== null ? String(order.tableId).replace('T', '') : '1') : (order.type === 'delivery' ? 'Delivery' : 'Para Llevar')}</p>
           ${order.customerName ? `<p style="font-size: 11px;">CLIENTE: ${order.customerName}</p>` : ''}
           ${order.clientId ? `<p style="font-size: 11px;">C.I./RIF: ${order.clientId}</p>` : ''}
           <div class="divider"></div>

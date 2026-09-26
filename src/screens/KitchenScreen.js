@@ -4,7 +4,66 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalActiveOrders, syncFromCloud, pushOrderToCloud } from '../store/mockDb';
 import TicketModal from '../components/TicketModal';
 
-export default function KitchenScreen({ navigation }) {
+// Helper ultra defensivo para formatear la hora sin que jamás lance excepciones
+const formatOrderTime = (createdAt) => {
+  try {
+    if (!createdAt) return '';
+    const d = new Date(createdAt);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return '';
+  }
+};
+
+// Helper seguro para obtener la etiqueta de la mesa
+const getTableTitle = (order) => {
+  try {
+    if (!order) return 'Mesa 1';
+    if (order.type === 'delivery') return 'Delivery';
+    if (order.type === 'pickup') return 'Para Llevar';
+    const rawId = order.tableId !== undefined && order.tableId !== null ? String(order.tableId) : '1';
+    return `Mesa ${rawId.replace(/^T/i, '')}`;
+  } catch (e) {
+    return 'Mesa';
+  }
+};
+
+// Componente Boundary interno para atrapar cualquier error inesperado
+class KitchenErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, errorMsg: '' };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, errorMsg: error ? error.toString() : 'Error' };
+  }
+  componentDidCatch(error, info) {
+    console.error("Error en pantalla de cocina:", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={60} color="#ef4444" />
+          <Text style={{ color: '#fff', fontSize: 20, fontWeight: 'bold', marginTop: 15 }}>Aviso en Pantalla de Cocina</Text>
+          <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 8, textAlign: 'center', maxWidth: 400 }}>
+            {this.state.errorMsg}
+          </Text>
+          <TouchableOpacity 
+            style={{ backgroundColor: '#2563eb', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, marginTop: 20 }}
+            onPress={() => this.setState({ hasError: false })}
+          >
+            <Text style={{ color: '#fff', fontWeight: 'bold' }}>Reintentar Cocina</Text>
+          </TouchableOpacity>
+        </SafeAreaView>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function KitchenScreenContent({ navigation }) {
   const [selectedKitchenOrder, setSelectedKitchenOrder] = useState(null);
   const [isKitchenModalVisible, setIsKitchenModalVisible] = useState(false);
   const [tick, setTick] = useState(0);
@@ -14,7 +73,9 @@ export default function KitchenScreen({ navigation }) {
     let interval;
     if (Platform.OS === 'web') {
       interval = setInterval(async () => {
-        await syncFromCloud();
+        try {
+          await syncFromCloud();
+        } catch (e) {}
         setTick(t => t + 1);
       }, 3000);
     }
@@ -22,26 +83,46 @@ export default function KitchenScreen({ navigation }) {
   }, []);
 
   // Filtrar órdenes que tengan al menos 1 ítem enviado a cocina y no despachado
-  const pendingOrders = (globalActiveOrders || []).filter(order => 
-    order.items && order.items.some(item => item.sentToKitchen === true && !item.kitchenReady)
-  );
+  const ordersList = Array.isArray(globalActiveOrders) ? globalActiveOrders : [];
+  
+  const pendingOrders = ordersList.filter(order => {
+    if (!order || typeof order !== 'object') return false;
+    let items = order.items;
+    if (typeof items === 'string') {
+      try { items = JSON.parse(items); } catch (e) { items = []; }
+    }
+    if (!Array.isArray(items)) return false;
+    return items.some(item => item && item.sentToKitchen === true && !item.kitchenReady);
+  });
 
   const markItemReady = (orderId, itemIndex) => {
-    const order = globalActiveOrders.find(o => o.id === orderId);
-    if (order && order.items[itemIndex]) {
-      order.items[itemIndex].kitchenReady = true;
-      pushOrderToCloud(order);
-      setTick(t => t + 1);
+    const order = ordersList.find(o => o && o.id === orderId);
+    if (order) {
+      let items = order.items;
+      if (typeof items === 'string') {
+        try { items = JSON.parse(items); order.items = items; } catch (e) { items = []; }
+      }
+      if (Array.isArray(items) && items[itemIndex]) {
+        items[itemIndex].kitchenReady = true;
+        try { pushOrderToCloud(order); } catch (e) {}
+        setTick(t => t + 1);
+      }
     }
   };
 
   const markOrderReady = (orderId) => {
-    const order = globalActiveOrders.find(o => o.id === orderId);
+    const order = ordersList.find(o => o && o.id === orderId);
     if (order) {
-      order.items.forEach(i => {
-        if (i.sentToKitchen) i.kitchenReady = true;
-      });
-      pushOrderToCloud(order);
+      let items = order.items;
+      if (typeof items === 'string') {
+        try { items = JSON.parse(items); order.items = items; } catch (e) { items = []; }
+      }
+      if (Array.isArray(items)) {
+        items.forEach(i => {
+          if (i && i.sentToKitchen) i.kitchenReady = true;
+        });
+      }
+      try { pushOrderToCloud(order); } catch (e) {}
       setTick(t => t + 1);
     }
   };
@@ -50,7 +131,13 @@ export default function KitchenScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea}>
       {/* Navbar Oscuro para la Cocina */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.navigate('Dashboard')} style={styles.backBtn}>
+        <TouchableOpacity 
+          onPress={() => {
+            if (navigation && navigation.navigate) navigation.navigate('Dashboard');
+            else if (navigation && navigation.goBack) navigation.goBack();
+          }} 
+          style={styles.backBtn}
+        >
           <MaterialCommunityIcons name="arrow-left" size={20} color="#fff" />
           <Text style={styles.backBtnText}>Volver</Text>
         </TouchableOpacity>
@@ -63,36 +150,54 @@ export default function KitchenScreen({ navigation }) {
           <View style={styles.emptyState}>
             <MaterialCommunityIcons name="silverware-clean" size={60} color="#334155" />
             <Text style={styles.emptyText}>No hay comandas pendientes</Text>
-            <Text style={styles.emptySub}>La cocina está libre</Text>
+            <Text style={styles.emptySub}>La cocina está libre y lista para recibir pedidos</Text>
           </View>
         ) : (
           <View style={styles.grid}>
-            {pendingOrders.map((order, i) => (
-              <View key={i} style={styles.ticketCard}>
-                <View style={[styles.ticketHeader, order.type === 'delivery' ? {backgroundColor: '#ef4444'} : (order.type === 'dine_in' ? {backgroundColor: '#10b981'} : {backgroundColor: '#f59e0b'})]}>
-                    <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
+            {pendingOrders.map((order, i) => {
+              let items = order.items;
+              if (typeof items === 'string') {
+                try { items = JSON.parse(items); } catch (e) { items = []; }
+              }
+              const validItems = Array.isArray(items) ? items : [];
+              const pendingItems = validItems.filter(item => item && item.sentToKitchen && !item.kitchenReady);
+
+              return (
+                <View key={order.id || i} style={styles.ticketCard}>
+                  <View style={[styles.ticketHeader, order.type === 'delivery' ? { backgroundColor: '#ef4444' } : (order.type === 'dine_in' ? { backgroundColor: '#10b981' } : { backgroundColor: '#f59e0b' })]}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Text style={styles.ticketTitle}>
-                        {order.type === 'dine_in' ? `Mesa ${order.tableId ? order.tableId.replace('T', '') : '1'}` : (order.type === 'delivery' ? 'Delivery' : 'Pick-up')}
+                        {getTableTitle(order)}
                       </Text>
-                      <Text style={styles.ticketTime}>{new Date(order.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</Text>
+                      <Text style={styles.ticketTime}>{formatOrderTime(order.createdAt)}</Text>
                     </View>
-                    <Text style={{color: '#fff', fontSize: 14, marginTop: 4, fontWeight: 'bold', opacity: 0.9}}>Ord: {order.id}</Text>
-                    {order.customerName ? (
-                      <Text style={{color: '#fff', fontSize: 16, marginTop: 4, fontWeight: 'bold'}}>👤 {order.customerName}</Text>
+                    <Text style={{ color: '#fff', fontSize: 13, marginTop: 4, fontWeight: 'bold', opacity: 0.9 }}>
+                      Ord: {order.order_number || order.id || 'N/A'}
+                    </Text>
+                    {order.customerName || order.customer_name ? (
+                      <Text style={{ color: '#fff', fontSize: 15, marginTop: 4, fontWeight: 'bold' }}>
+                        👤 {order.customerName || order.customer_name}
+                      </Text>
                     ) : null}
                   </View>
-                
-                <View style={styles.ticketBody}>
-                  {order.items.filter(item => item.sentToKitchen && !item.kitchenReady).map((item, idx) => (
-                    <TouchableOpacity key={idx} style={styles.itemRow} onPress={() => markItemReady(order.id, order.items.indexOf(item))}>
-                      <View style={styles.qtyBox}><Text style={styles.qtyText}>{item.qty}</Text></View>
-                      <Text style={styles.itemName}>{item.name}</Text>
-                      <MaterialCommunityIcons name="check-circle-outline" size={24} color="#94a3b8" />
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                  
+                  <View style={styles.ticketBody}>
+                    {pendingItems.map((item, idx) => (
+                      <TouchableOpacity 
+                        key={idx} 
+                        style={styles.itemRow} 
+                        onPress={() => markItemReady(order.id, validItems.indexOf(item))}
+                      >
+                        <View style={styles.qtyBox}>
+                          <Text style={styles.qtyText}>{item.qty || 1}</Text>
+                        </View>
+                        <Text style={styles.itemName}>{item.name || 'Plato'}</Text>
+                        <MaterialCommunityIcons name="check-circle-outline" size={24} color="#94a3b8" />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
 
-                <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#e2e8f0' }}>
+                  <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#e2e8f0' }}>
                     <TouchableOpacity 
                       style={{ flex: 1, backgroundColor: '#0284c7', padding: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 }} 
                       onPress={() => {
@@ -101,57 +206,67 @@ export default function KitchenScreen({ navigation }) {
                       }}
                     >
                       <MaterialCommunityIcons name="printer" size={18} color="#fff" />
-                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13 }}>Imprimir Comanda</Text>
+                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13 }}>Imprimir</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity 
-                      style={{ flex: 1.5, backgroundColor: '#10b981', padding: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 }} 
+                      style={{ flex: 1.4, backgroundColor: '#10b981', padding: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 }} 
                       onPress={() => markOrderReady(order.id)}
                     >
                       <MaterialCommunityIcons name="bell-ring-outline" size={18} color="#fff" />
-                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>Despachar Mesa</Text>
+                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>Despachar</Text>
                     </TouchableOpacity>
                   </View>
-              </View>
-            ))}
+                </View>
+              );
+            })}
           </View>
         )}
       </ScrollView>
-      <TicketModal 
-        visible={isKitchenModalVisible}
-        type="kitchen"
-        order={selectedKitchenOrder}
-        onClose={() => setIsKitchenModalVisible(false)}
-      />
+
+      {/* Modal de Impresión de Comanda */}
+      {isKitchenModalVisible && selectedKitchenOrder && (
+        <TicketModal 
+          visible={isKitchenModalVisible}
+          type="kitchen"
+          order={selectedKitchenOrder}
+          onClose={() => setIsKitchenModalVisible(false)}
+        />
+      )}
     </SafeAreaView>
+  );
+}
+
+export default function KitchenScreen(props) {
+  return (
+    <KitchenErrorBoundary>
+      <KitchenScreenContent {...props} />
+    </KitchenErrorBoundary>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#0f172a' },
-  header: { backgroundColor: '#1e293b', padding: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#334155' },
+  header: { backgroundColor: '#1e293b', padding: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#334155' },
   backBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#334155', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
-  backBtnText: { color: '#fff', marginLeft: 8, fontWeight: 'bold' },
-  headerTitle: { color: '#fff', fontSize: 24, fontWeight: '900' },
-  pulseDot: { width: 12, height: 12, backgroundColor: '#10b981', borderRadius: 6, ...Platform.select({ web: { boxShadow: '0 0 10px #10b981' } }) },
+  backBtnText: { color: '#fff', marginLeft: 6, fontWeight: 'bold', fontSize: 13 },
+  headerTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
+  pulseDot: { width: 10, height: 10, backgroundColor: '#10b981', borderRadius: 5, ...Platform.select({ web: { boxShadow: '0 0 10px #10b981' } }) },
   
-  container: { padding: 20 },
+  container: { padding: 20, minHeight: '100%' },
   emptyState: { alignItems: 'center', justifyContent: 'center', marginTop: 100 },
-  emptyText: { color: '#94a3b8', fontSize: 24, fontWeight: 'bold', marginTop: 20 },
-  emptySub: { color: '#475569', fontSize: 16, marginTop: 10 },
+  emptyText: { color: '#94a3b8', fontSize: 22, fontWeight: 'bold', marginTop: 20 },
+  emptySub: { color: '#64748b', fontSize: 14, marginTop: 8 },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 20 },
-  ticketCard: { backgroundColor: '#fff', width: 300, borderRadius: 12, overflow: 'hidden' },
-  ticketHeader: { padding: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  ticketTitle: { color: '#fff', fontSize: 20, fontWeight: '900' },
-  ticketTime: { color: '#fff', fontSize: 14, fontWeight: 'bold', opacity: 0.8 },
+  ticketCard: { backgroundColor: '#fff', width: 310, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#334155' },
+  ticketHeader: { padding: 14 },
+  ticketTitle: { color: '#fff', fontSize: 19, fontWeight: 'bold' },
+  ticketTime: { color: '#fff', fontSize: 13, fontWeight: 'bold', opacity: 0.85 },
   
-  ticketBody: { padding: 15, minHeight: 150 },
-  itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  qtyBox: { backgroundColor: '#f1f5f9', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, marginRight: 15 },
-  qtyText: { fontSize: 16, fontWeight: '900', color: '#0f172a' },
-  itemName: { flex: 1, fontSize: 16, fontWeight: '600', color: '#1e293b' },
-  
-  dispatchBtn: { backgroundColor: '#10b981', padding: 15, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 },
-  dispatchTxt: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
+  ticketBody: { padding: 14, minHeight: 140 },
+  itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  qtyBox: { backgroundColor: '#f1f5f9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginRight: 12 },
+  qtyText: { fontSize: 16, fontWeight: 'bold', color: '#0f172a' },
+  itemName: { flex: 1, fontSize: 15, fontWeight: '600', color: '#1e293b' },
 });
