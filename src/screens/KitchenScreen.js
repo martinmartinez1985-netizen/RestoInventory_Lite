@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { globalActiveOrders } from '../store/mockDb';
+import { globalActiveOrders, syncFromCloud, pushOrderToCloud } from '../store/mockDb';
 import TicketModal from '../components/TicketModal';
 
 export default function KitchenScreen({ navigation }) {
@@ -9,11 +9,14 @@ export default function KitchenScreen({ navigation }) {
   const [isKitchenModalVisible, setIsKitchenModalVisible] = useState(false);
   const [tick, setTick] = useState(0);
 
-  // Auto-refrescar cada 2 segundos simulando WebSockets
+  // Auto-refrescar cada 3 segundos sincronizando con Supabase en tiempo real
   useEffect(() => {
     let interval;
     if (Platform.OS === 'web') {
-      interval = setInterval(() => setTick(t => t + 1), 2000);
+      interval = setInterval(async () => {
+        await syncFromCloud();
+        setTick(t => t + 1);
+      }, 3000);
     }
     return () => clearInterval(interval);
   }, []);
@@ -27,6 +30,7 @@ export default function KitchenScreen({ navigation }) {
     const order = globalActiveOrders.find(o => o.id === orderId);
     if (order && order.items[itemIndex]) {
       order.items[itemIndex].kitchenReady = true;
+      pushOrderToCloud(order);
       setTick(t => t + 1);
     }
   };
@@ -37,6 +41,7 @@ export default function KitchenScreen({ navigation }) {
       order.items.forEach(i => {
         if (i.sentToKitchen) i.kitchenReady = true;
       });
+      pushOrderToCloud(order);
       setTick(t => t + 1);
     }
   };

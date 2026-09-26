@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+import { supabase } from '../config/supabase';
 export const globalDirectory = [
   // Clientes
   { id: '1', name: 'DANIEL VILLASMIL', docId: 'V-58748394', email: 'Sin correo', phone: '04146183019', address: 'SECTOR PANAMERICANO', type: 'Clientes' },
@@ -356,7 +358,6 @@ export const deleteRawMaterial = (id) => {
   return false;
 };
 
-import { Platform } from 'react-native';
 
 const STORAGE_KEY = 'RESTOSYS_LITE_DB_V1';
 

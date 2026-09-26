@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, FlatList, Platform, Modal, TextInput, Alert, ScrollView } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { globalRawMaterials, addWaste, updateStock, addRawMaterial, updateRawMaterial, deleteRawMaterial, persistData } from '../store/mockDb';
+import { globalRawMaterials, addWaste, updateStock, addRawMaterial, updateRawMaterial, deleteRawMaterial, persistData, syncFromCloud } from '../store/mockDb';
 import { formatDisplay, toBase } from '../utils/unitConverter';
 
 export default function RawMaterialsScreen({ navigation }) {
@@ -26,14 +26,20 @@ export default function RawMaterialsScreen({ navigation }) {
   const [formMinStock, setFormMinStock] = useState('');
   const [formCost, setFormCost] = useState('');
 
-  // Cargar ingredientes al entrar a la pantalla
-  const refreshData = useCallback(() => {
+  // Cargar ingredientes al entrar a la pantalla y sincronizar con la nube
+  const refreshData = useCallback(async () => {
+    await syncFromCloud();
     setIngredients([...globalRawMaterials]);
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       refreshData();
+      const interval = setInterval(async () => {
+        await syncFromCloud();
+        setIngredients([...globalRawMaterials]);
+      }, 4000);
+      return () => clearInterval(interval);
     }, [refreshData])
   );
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform, TextInput, Image, Dimensions, Modal } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import TicketModal from '../components/TicketModal';
-import { globalActiveOrders, globalRecipes, processProductionBatch, updateStock, registerShiftSale, globalTables, globalSettings, globalDirectory, addContactToGlobal, recordCompletedOrder, globalOrderHistory } from '../store/mockDb';
+import { globalActiveOrders, globalRecipes, processProductionBatch, updateStock, registerShiftSale, globalTables, globalSettings, globalDirectory, addContactToGlobal, recordCompletedOrder, globalOrderHistory, pushOrderToCloud, persistData } from '../store/mockDb';
 
 const { width } = Dimensions.get('window');
 
@@ -183,6 +183,8 @@ export default function PosOrderingScreen({ route, navigation }) {
             successCount++;
           }
         });
+        persistData();
+        pushOrderToCloud(order);
         setTicketModalType('kitchen');
         setTicketModalVisible(true);
         setTick(t => t + 1);

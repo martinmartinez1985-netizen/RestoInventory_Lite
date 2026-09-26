@@ -2,25 +2,31 @@ import { Platform } from 'react-native';
 
 const STORAGE_KEY_CONFIG = 'RESTOSYS_SUPABASE_CONFIG_V1';
 
+export const DEFAULT_SUPABASE_URL = 'https://smppvmucqkwcvqqikjue.supabase.co';
+export const DEFAULT_SUPABASE_KEY = 'sb_publishable_0ObPJ7-6QLNDaVYLOB18sg_cqvPZylO';
+
 export const getSupabaseConfig = () => {
   if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.anonKey && parsed.anonKey.trim().length > 0) return parsed;
+      }
     } catch (e) {}
   }
   return {
-    url: 'https://smppvmucqkwcvqqikjue.supabase.co',
-    anonKey: '',
-    isConnected: false
+    url: DEFAULT_SUPABASE_URL,
+    anonKey: DEFAULT_SUPABASE_KEY,
+    isConnected: true
   };
 };
 
 export const saveSupabaseConfig = (url, anonKey) => {
   const config = {
-    url: (url || '').trim(),
-    anonKey: (anonKey || '').trim(),
-    isConnected: !!((url || '').trim() && (anonKey || '').trim())
+    url: (url || DEFAULT_SUPABASE_URL).trim(),
+    anonKey: (anonKey || DEFAULT_SUPABASE_KEY).trim(),
+    isConnected: !!((url || DEFAULT_SUPABASE_URL).trim() && (anonKey || DEFAULT_SUPABASE_KEY).trim())
   };
   if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
     try {
@@ -30,11 +36,11 @@ export const saveSupabaseConfig = (url, anonKey) => {
   return config;
 };
 
-// Cliente Supabase REST nativo ligero y ultra-confiable (sin dependencias problemáticas de Metro)
-class SimpleSupabaseClient {
+// Cliente Supabase REST nativo ultraligero y de alta velocidad (sin librerías pesadas)
+export class SimpleSupabaseClient {
   constructor(url, key) {
-    this.url = url ? url.replace(/\/+$/, '') : '';
-    this.key = key ? key.trim() : '';
+    this.url = (url || DEFAULT_SUPABASE_URL).replace(/\/+$/, '');
+    this.key = (key || DEFAULT_SUPABASE_KEY).trim();
   }
 
   getHeaders(preferMerge = false) {
@@ -52,9 +58,9 @@ class SimpleSupabaseClient {
   from(table) {
     const self = this;
     return {
-      select: async (query = '*') => {
+      select: async (query = '*', limit = 100) => {
         try {
-          const res = await fetch(`${self.url}/rest/v1/${table}?select=${encodeURIComponent(query)}&limit=50`, {
+          const res = await fetch(`${self.url}/rest/v1/${table}?select=${encodeURIComponent(query)}&limit=${limit}`, {
             headers: self.getHeaders()
           });
           if (!res.ok) {
@@ -67,6 +73,7 @@ class SimpleSupabaseClient {
           return { data: null, error: { message: err.message } };
         }
       },
+
       upsert: async (rows) => {
         try {
           const dataRows = Array.isArray(rows) ? rows : [rows];
@@ -84,6 +91,7 @@ class SimpleSupabaseClient {
           return { data: null, error: { message: err.message } };
         }
       },
+
       insert: async (rows) => {
         try {
           const dataRows = Array.isArray(rows) ? rows : [rows];
@@ -100,34 +108,44 @@ class SimpleSupabaseClient {
         } catch (err) {
           return { data: null, error: { message: err.message } };
         }
+      },
+
+      delete: async (matchField, matchValue) => {
+        try {
+          const res = await fetch(`${self.url}/rest/v1/${table}?${encodeURIComponent(matchField)}=eq.${encodeURIComponent(matchValue)}`, {
+            method: 'DELETE',
+            headers: self.getHeaders()
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ message: res.statusText }));
+            return { error: err };
+          }
+          return { error: null };
+        } catch (err) {
+          return { error: { message: err.message } };
+        }
       }
     };
   }
 }
 
 let currentConfig = getSupabaseConfig();
-export let supabase = (currentConfig.url && currentConfig.anonKey) 
-  ? new SimpleSupabaseClient(currentConfig.url, currentConfig.anonKey) 
-  : null;
+export let supabase = new SimpleSupabaseClient(currentConfig.url, currentConfig.anonKey);
 
 export const reloadSupabaseClient = (url, anonKey) => {
-  if (url && anonKey) {
-    supabase = new SimpleSupabaseClient(url, anonKey);
-    saveSupabaseConfig(url, anonKey);
-    return supabase;
-  }
-  supabase = null;
-  saveSupabaseConfig('', '');
-  return null;
+  const activeUrl = url || DEFAULT_SUPABASE_URL;
+  const activeKey = anonKey || DEFAULT_SUPABASE_KEY;
+  supabase = new SimpleSupabaseClient(activeUrl, activeKey);
+  saveSupabaseConfig(activeUrl, activeKey);
+  return supabase;
 };
 
 export const testSupabaseConnection = async (url, anonKey) => {
-  if (!url || !anonKey) throw new Error("Debe ingresar la URL y la API Key de Supabase.");
-  const cleanUrl = url.trim().replace(/\/+$/, '');
-  const cleanKey = anonKey.trim();
+  const cleanUrl = (url || DEFAULT_SUPABASE_URL).trim().replace(/\/+$/, '');
+  const cleanKey = (anonKey || DEFAULT_SUPABASE_KEY).trim();
 
   try {
-    const res = await fetch(`${cleanUrl}/rest/v1/settings?select=*&limit=1`, {
+    const res = await fetch(`${cleanUrl}/rest/v1/raw_materials?select=*&limit=1`, {
       headers: {
         'apikey': cleanKey,
         'Authorization': `Bearer ${cleanKey}`
@@ -135,22 +153,15 @@ export const testSupabaseConnection = async (url, anonKey) => {
     });
 
     if (res.status === 401 || res.status === 403) {
-      throw new Error("Clave API no autorizada. Verifique que copió la anon / public key completa.");
-    }
-
-    if (res.status === 404) {
-      return { success: true, message: "¡Conectado a Supabase! (Aviso: Recuerde haber ejecutado el script SQL en Supabase)." };
+      throw new Error("Clave API no autorizada. Verifique que copió la anon / publishable key completa.");
     }
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({ message: res.statusText }));
-      if (err.message && err.message.includes('relation') && err.message.includes('does not exist')) {
-        return { success: true, message: "¡Conexión con Supabase verificada exitosamente!" };
-      }
       throw new Error(err.message || res.statusText);
     }
 
-    return { success: true, message: "¡Conexión con Supabase verificada y lista para migrar!" };
+    return { success: true, message: "¡Conexión con Supabase verificada exitosamente! Base de datos en la nube activa." };
   } catch (err) {
     throw new Error("No se pudo conectar a Supabase: " + err.message);
   }
