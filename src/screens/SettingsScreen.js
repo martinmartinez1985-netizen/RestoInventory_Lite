@@ -23,7 +23,10 @@ import {
   deleteUser, 
   setCurrentUser, 
   updateMasterPin, 
-  executeMasterWipe 
+  executeMasterWipe,
+  ALL_MODULE_KEYS,
+  getUserPermissions,
+  DEFAULT_PERMISSIONS
 } from '../store/mockDb';
 import { getSupabaseConfig, testSupabaseConnection, reloadSupabaseClient } from '../config/supabase';
 import { supabaseService } from '../services/supabaseService';
@@ -78,12 +81,14 @@ export default function SettingsScreen({ navigation }) {
   // Tab activo
   const [activeTab, setActiveTab] = useState('users'); // 'users', 'security', 'danger'
 
-  // Modal Crear Usuario
+  // Modal Crear / Editar Usuario
   const [isUserModalVisible, setIsUserModalVisible] = useState(false);
+  const [editingUserId, setEditingUserId] = useState(null);
   const [newUserName, setNewUserName] = useState('');
   const [newUserLogin, setNewUserLogin] = useState('');
   const [newUserPin, setNewUserPin] = useState('');
   const [newUserRole, setNewUserRole] = useState('cashier');
+  const [userPermissions, setUserPermissions] = useState([]);
 
   // Modal Cambiar Clave Maestra
   const [currentMasterPin, setCurrentMasterPin] = useState('');
@@ -162,7 +167,50 @@ export default function SettingsScreen({ navigation }) {
     setRevealedPins(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Guardar nuevo usuario
+  const handleOpenNewUser = () => {
+    setEditingUserId(null);
+    setNewUserName('');
+    setNewUserLogin('');
+    setNewUserPin('');
+    setNewUserRole('cashier');
+    setUserPermissions([...(DEFAULT_PERMISSIONS.cashier || [])]);
+    setIsUserModalVisible(true);
+  };
+
+  const handleOpenEditUser = (user) => {
+    setEditingUserId(user.id);
+    setNewUserName(user.name);
+    setNewUserLogin(user.username);
+    setNewUserPin(user.pin);
+    setNewUserRole(user.role);
+    setUserPermissions([...getUserPermissions(user)]);
+    setIsUserModalVisible(true);
+  };
+
+  const handleRoleChangeInModal = (roleKey) => {
+    setNewUserRole(roleKey);
+    setUserPermissions([...(DEFAULT_PERMISSIONS[roleKey] || [])]);
+  };
+
+  const togglePermission = (key) => {
+    setUserPermissions(prev => {
+      if (prev.includes(key)) {
+        return prev.filter(k => k !== key);
+      } else {
+        return [...prev, key];
+      }
+    });
+  };
+
+  const handleSelectAllPermissions = () => {
+    setUserPermissions(ALL_MODULE_KEYS.map(m => m.key));
+  };
+
+  const handleClearPermissions = () => {
+    setUserPermissions([]);
+  };
+
+  // Guardar usuario (Nuevo o Editado)
   const handleSaveUser = () => {
     if (!newUserName.trim() || !newUserLogin.trim() || !newUserPin.trim()) {
       alert("Todos los campos son obligatorios.");
@@ -174,19 +222,34 @@ export default function SettingsScreen({ navigation }) {
     }
 
     try {
-      addUser({
-        name: newUserName,
-        username: newUserLogin,
-        pin: newUserPin,
-        role: newUserRole
-      });
+      if (editingUserId) {
+        updateUser({
+          id: editingUserId,
+          name: newUserName.trim(),
+          username: newUserLogin.trim().toLowerCase(),
+          pin: newUserPin.trim(),
+          role: newUserRole,
+          permissions: userPermissions
+        });
+        alert("Usuario y permisos actualizados exitosamente.");
+      } else {
+        addUser({
+          name: newUserName.trim(),
+          username: newUserLogin.trim().toLowerCase(),
+          pin: newUserPin.trim(),
+          role: newUserRole,
+          permissions: userPermissions
+        });
+        alert("Usuario creado exitosamente.");
+      }
       setIsUserModalVisible(false);
+      setEditingUserId(null);
       setNewUserName('');
       setNewUserLogin('');
       setNewUserPin('');
       setNewUserRole('cashier');
+      setUserPermissions([]);
       refresh();
-      alert("Usuario creado exitosamente.");
     } catch (err) {
       alert("Error: " + err.message);
     }
@@ -375,7 +438,7 @@ export default function SettingsScreen({ navigation }) {
 
                 <TouchableOpacity 
                   style={styles.newUserBtn}
-                  onPress={() => setIsUserModalVisible(true)}
+                  onPress={handleOpenNewUser}
                 >
                   <MaterialCommunityIcons name="account-plus" size={18} color="#ffffff" style={{ marginRight: 6 }} />
                   <Text style={styles.newUserBtnText}>Nuevo Usuario</Text>
@@ -388,6 +451,7 @@ export default function SettingsScreen({ navigation }) {
                   const roleConfig = ROLE_INFO[user.role] || ROLE_INFO.cashier;
                   const isActive = globalCurrentUser.id === user.id;
                   const isPinRevealed = !!revealedPins[user.id];
+                  const userPerms = getUserPermissions(user);
 
                   return (
                     <View key={user.id} style={[styles.userCard, isActive && styles.userCardActive]}>
@@ -405,10 +469,16 @@ export default function SettingsScreen({ navigation }) {
                             )}
                           </View>
                           <Text style={styles.userUsername}>@{user.username}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 }}>
+                            <MaterialCommunityIcons name="shield-check-outline" size={13} color="#059669" />
+                            <Text style={{ fontSize: 11, color: '#059669', fontWeight: '700' }}>
+                              {userPerms.length} de {ALL_MODULE_KEYS.length} módulos habilitados
+                            </Text>
+                          </View>
                         </View>
                       </View>
 
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 20 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                         {/* Rol */}
                         <View style={[styles.roleBadge, { backgroundColor: roleConfig.bgColor, borderColor: roleConfig.borderColor }]}>
                           <Text style={[styles.roleBadgeText, { color: roleConfig.color }]}>
@@ -430,6 +500,24 @@ export default function SettingsScreen({ navigation }) {
                             color={COLORS.textMuted} 
                             style={{ marginLeft: 4 }} 
                           />
+                        </TouchableOpacity>
+
+                        {/* Botón Editar Usuario y Permisos */}
+                        <TouchableOpacity 
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: '#e0f2fe',
+                            borderWidth: 1,
+                            borderColor: '#7dd3fc',
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            borderRadius: 8
+                          }}
+                          onPress={() => handleOpenEditUser(user)}
+                        >
+                          <MaterialCommunityIcons name="pencil-outline" size={15} color="#0284c7" style={{ marginRight: 4 }} />
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: '#0284c7' }}>Editar</Text>
                         </TouchableOpacity>
 
                         {/* Botones de acción */}
@@ -749,18 +837,27 @@ export default function SettingsScreen({ navigation }) {
 
         </ScrollView>
 
-        {/* MODAL CREAR USUARIO */}
+        {/* MODAL CREAR / EDITAR USUARIO Y PERMISOS */}
         <Modal visible={isUserModalVisible} transparent={true} animationType="fade">
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>Crear Nuevo Usuario</Text>
+            <View style={[styles.modalContent, { width: 560, maxHeight: '90%' }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <MaterialCommunityIcons 
+                    name={editingUserId ? "account-edit-outline" : "account-plus"} 
+                    size={24} 
+                    color={COLORS.primary} 
+                  />
+                  <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>
+                    {editingUserId ? 'Editar Usuario y Permisos' : 'Crear Nuevo Usuario'}
+                  </Text>
+                </View>
                 <TouchableOpacity onPress={() => setIsUserModalVisible(false)}>
                   <MaterialCommunityIcons name="close" size={24} color={COLORS.textMuted} />
                 </TouchableOpacity>
               </View>
 
-              <View style={{ gap: 15 }}>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 14 }}>
                 <View>
                   <Text style={styles.formLabel}>NOMBRE COMPLETO:</Text>
                   <TextInput 
@@ -771,19 +868,31 @@ export default function SettingsScreen({ navigation }) {
                   />
                 </View>
 
-                <View>
-                  <Text style={styles.formLabel}>USUARIO / LOGIN:</Text>
-                  <TextInput 
-                    style={styles.formInput}
-                    placeholder="Ej. juanp"
-                    value={newUserLogin}
-                    onChangeText={setNewUserLogin}
-                    autoCapitalize="none"
-                  />
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.formLabel}>USUARIO / LOGIN:</Text>
+                    <TextInput 
+                      style={styles.formInput}
+                      placeholder="Ej. juanp"
+                      value={newUserLogin}
+                      onChangeText={setNewUserLogin}
+                      autoCapitalize="none"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.formLabel}>PIN DE ACCESO (MÍN. 4 DÍGITOS):</Text>
+                    <TextInput 
+                      style={styles.formInput}
+                      placeholder="Ej. 1234"
+                      value={newUserPin}
+                      onChangeText={setNewUserPin}
+                      keyboardType="numeric"
+                    />
+                  </View>
                 </View>
 
                 <View>
-                  <Text style={styles.formLabel}>ROL DEL USUARIO:</Text>
+                  <Text style={styles.formLabel}>ROL DEL USUARIO (PLANTILLA BASE):</Text>
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     {[
                       { key: 'cashier', label: 'Cajero', icon: 'cash-register' },
@@ -793,7 +902,7 @@ export default function SettingsScreen({ navigation }) {
                       <TouchableOpacity
                         key={r.key}
                         style={[styles.roleSelectBtn, newUserRole === r.key && styles.roleSelectBtnActive]}
-                        onPress={() => setNewUserRole(r.key)}
+                        onPress={() => handleRoleChangeInModal(r.key)}
                       >
                         <MaterialCommunityIcons 
                           name={r.icon} 
@@ -808,16 +917,78 @@ export default function SettingsScreen({ navigation }) {
                   </View>
                 </View>
 
-                <View>
-                  <Text style={styles.formLabel}>PIN DE ACCESO (MÍNIMO 4 DÍGITOS):</Text>
-                  <TextInput 
-                    style={styles.formInput}
-                    placeholder="Ej. 1234"
-                    value={newUserPin}
-                    onChangeText={setNewUserPin}
-                    keyboardType="numeric"
-                    secureTextEntry
-                  />
+                {/* SELECCIÓN DE PERMISOS DE MÓDULOS */}
+                <View style={{ marginTop: 4, backgroundColor: '#f8fafc', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0' }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <View>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: COLORS.text }}>
+                        Módulos Visibles en el Menú:
+                      </Text>
+                      <Text style={{ fontSize: 11, color: COLORS.textMuted }}>
+                        Selecciona qué módulos puede ver y acceder este usuario ({userPermissions.length} / {ALL_MODULE_KEYS.length})
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <TouchableOpacity 
+                        style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#e2e8f0', borderRadius: 6 }}
+                        onPress={handleSelectAllPermissions}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>Todos</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#fee2e2', borderRadius: 6 }}
+                        onPress={handleClearPermissions}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#b91c1c' }}>Ninguno</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {ALL_MODULE_KEYS.map(mod => {
+                      const isChecked = userPermissions.includes(mod.key);
+                      return (
+                        <TouchableOpacity
+                          key={mod.key}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            paddingHorizontal: 10,
+                            paddingVertical: 7,
+                            borderRadius: 8,
+                            borderWidth: 1.5,
+                            borderColor: isChecked ? '#0284c7' : '#cbd5e1',
+                            backgroundColor: isChecked ? '#e0f2fe' : '#ffffff',
+                            width: '48%',
+                            minWidth: 180
+                          }}
+                          onPress={() => togglePermission(mod.key)}
+                          activeOpacity={0.7}
+                        >
+                          <MaterialCommunityIcons 
+                            name={isChecked ? "checkbox-marked" : "checkbox-blank-outline"} 
+                            size={18} 
+                            color={isChecked ? "#0284c7" : "#94a3b8"} 
+                            style={{ marginRight: 6 }}
+                          />
+                          <MaterialCommunityIcons 
+                            name={mod.icon} 
+                            size={16} 
+                            color={isChecked ? "#0369a1" : "#64748b"} 
+                            style={{ marginRight: 6 }}
+                          />
+                          <Text style={{
+                            fontSize: 12,
+                            fontWeight: isChecked ? '700' : '500',
+                            color: isChecked ? '#0369a1' : '#475569',
+                            flex: 1
+                          }} numberOfLines={1}>
+                            {mod.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 12, marginTop: 10 }}>
@@ -832,10 +1003,12 @@ export default function SettingsScreen({ navigation }) {
                     style={styles.modalSubmitBtn}
                     onPress={handleSaveUser}
                   >
-                    <Text style={styles.modalSubmitText}>Guardar Usuario</Text>
+                    <Text style={styles.modalSubmitText}>
+                      {editingUserId ? 'Guardar Cambios' : 'Guardar Usuario'}
+                    </Text>
                   </TouchableOpacity>
                 </View>
-              </View>
+              </ScrollView>
             </View>
           </View>
         </Modal>

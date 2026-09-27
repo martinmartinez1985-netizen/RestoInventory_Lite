@@ -1,18 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, SafeAreaView, Platform, Image, TextInput } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { globalSettings, globalCurrentUser } from '../store/mockDb';
+import { globalSettings, globalCurrentUser, getUserPermissions } from '../store/mockDb';
 
 const { width } = Dimensions.get('window');
 const columns = width > 800 ? 5 : 3;
-
-
-const ROLE_PERMISSIONS = {
-  admin: ['Contacts', 'Billing', 'Kitchen', 'DailySales', 'Receivables', 'Payables', 'Recipes', 'InventoryHub', 'CashClose', 'Settings'],
-  cashier: ['Billing', 'Kitchen', 'DailySales', 'CashClose', 'Contacts'],
-  cook: ['Kitchen', 'Recipes']
-};
 
 const MODULES = [
   { id: '1', title: 'Contactos', icon: 'card-account-details-outline', colors: ['#00d49f', '#00b88a'], route: 'Contacts' },
@@ -28,11 +22,25 @@ const MODULES = [
 ];
 
 export default function DashboardScreen({ navigation }) {
+  const isFocused = useIsFocused();
   const [tick, setTick] = React.useState(0);
 
-  // Filtrar modulos segun el rol del usuario activo
-  const allowedRoutes = ROLE_PERMISSIONS[globalCurrentUser.role] || ROLE_PERMISSIONS.admin;
+  React.useEffect(() => {
+    if (isFocused) {
+      setTick(t => t + 1);
+    }
+  }, [isFocused]);
+
+  // Filtrar modulos segun los permisos especificos asignados al usuario activo
+  const allowedRoutes = getUserPermissions(globalCurrentUser);
   const filteredModules = MODULES.filter(m => allowedRoutes.includes(m.route));
+
+  const roleLabels = {
+    admin: { label: 'Administrador', color: '#8b5cf6', bg: '#f5f3ff', icon: 'crown' },
+    cashier: { label: 'Cajero / POS', color: '#0284c7', bg: '#f0f9ff', icon: 'cash-register' },
+    cook: { label: 'Cocinero / Chef', color: '#d97706', bg: '#fffbeb', icon: 'chef-hat' }
+  };
+  const currentRole = roleLabels[globalCurrentUser.role] || roleLabels.cashier;
 
   const renderItem = ({ item }) => (
     <View style={styles.itemContainer}>
@@ -66,22 +74,61 @@ export default function DashboardScreen({ navigation }) {
         <View style={styles.welcomeSection}>
           <Image 
             source={require('../../assets/logo.png')} 
-            style={{ height: 120, width: 350, resizeMode: 'contain', marginBottom: 10 }} 
+            style={{ height: 110, width: 330, resizeMode: 'contain', marginBottom: 14 }} 
           />
-          <Text style={styles.subtitleText}>Selecciona un módulo para comenzar a trabajar</Text>
+          
+          {/* Badge del Usuario Actual */}
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: currentRole.bg,
+            borderWidth: 1,
+            borderColor: currentRole.color + '40',
+            paddingHorizontal: 16,
+            paddingVertical: 7,
+            borderRadius: 25,
+            marginBottom: 10,
+            gap: 8
+          }}>
+            <MaterialCommunityIcons name={currentRole.icon} size={18} color={currentRole.color} />
+            <Text style={{ fontSize: 13, color: '#334155', fontWeight: 'bold' }}>
+              Operador:{' '}
+              <Text style={{ color: currentRole.color, fontWeight: '900' }}>
+                {globalCurrentUser.name}
+              </Text>{' '}
+              ({currentRole.label})
+            </Text>
+          </View>
+
+          <Text style={styles.subtitleText}>
+            {filteredModules.length > 0
+              ? `Acceso a ${filteredModules.length} de ${MODULES.length} módulos habilitados para tu usuario.`
+              : 'No tienes módulos asignados. Contacta al Administrador.'}
+          </Text>
         </View>
 
-        
-          {/* Grid Section */}
-        <FlatList
-          data={filteredModules}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          numColumns={columns}
-          contentContainerStyle={styles.listContainer}
-          columnWrapperStyle={styles.columnWrapper}
-          scrollEnabled={false}
-        />
+        {/* Grid Section */}
+        {filteredModules.length > 0 ? (
+          <FlatList
+            data={filteredModules}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            numColumns={columns}
+            contentContainerStyle={styles.listContainer}
+            columnWrapperStyle={styles.columnWrapper}
+            scrollEnabled={false}
+          />
+        ) : (
+          <View style={{ alignItems: 'center', marginTop: 40, padding: 30, backgroundColor: '#fef2f2', borderRadius: 16, borderWidth: 1, borderColor: '#fca5a5' }}>
+            <MaterialCommunityIcons name="lock-alert" size={48} color="#ef4444" style={{ marginBottom: 12 }} />
+            <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#991b1b', marginBottom: 6 }}>
+              Sin Módulos Habilitados
+            </Text>
+            <Text style={{ fontSize: 13, color: '#b91c1c', textAlign: 'center', maxWidth: 380 }}>
+              Tu usuario no tiene módulos activos asignados en su perfil. Pide a un Administrador que configure tus permisos en Configuración ➡️ Usuarios.
+            </Text>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );

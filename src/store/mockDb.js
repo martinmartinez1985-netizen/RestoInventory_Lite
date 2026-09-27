@@ -479,18 +479,142 @@ export const syncFromCloud = async () => {
 };
 
 
+// ==========================================
+// USUARIOS, ROLES Y SEGURIDAD MAESTRA
+// ==========================================
+export const DEFAULT_PERMISSIONS = {
+  admin: ['Contacts', 'Billing', 'Kitchen', 'DailySales', 'Receivables', 'Payables', 'Recipes', 'InventoryHub', 'CashClose', 'Settings'],
+  cashier: ['Billing', 'Kitchen', 'DailySales', 'CashClose', 'Contacts'],
+  cook: ['Kitchen', 'Recipes']
+};
+
+export const ALL_MODULE_KEYS = [
+  { key: 'Billing', label: 'Facturación (Mesas / POS)', icon: 'calculator' },
+  { key: 'Kitchen', label: 'Cocina (KDS)', icon: 'fire' },
+  { key: 'DailySales', label: 'Ventas Diarias', icon: 'chart-box-outline' },
+  { key: 'CashClose', label: 'Caja y Cierres', icon: 'cash-register' },
+  { key: 'InventoryHub', label: 'Inventarios y Almacenes', icon: 'warehouse' },
+  { key: 'Recipes', label: 'Recetas y Costeo', icon: 'pot-mix' },
+  { key: 'Contacts', label: 'Contactos y Clientes', icon: 'card-account-details-outline' },
+  { key: 'Receivables', label: 'Cuentas por Cobrar (CxC)', icon: 'account-multiple-outline' },
+  { key: 'Payables', label: 'Cuentas por Pagar (CxP)', icon: 'office-building-outline' },
+  { key: 'Settings', label: 'Configuración y Usuarios', icon: 'cog-outline' }
+];
+
+export const getUserPermissions = (user) => {
+  if (!user) return DEFAULT_PERMISSIONS.admin;
+  if (Array.isArray(user.permissions) && user.permissions.length > 0) {
+    return user.permissions;
+  }
+  return DEFAULT_PERMISSIONS[user.role] || DEFAULT_PERMISSIONS.admin;
+};
+
+export const globalUsers = [
+  { 
+    id: 'usr-1', 
+    name: 'Administrador Principal', 
+    username: 'admin', 
+    pin: '1234', 
+    role: 'admin',
+    permissions: ['Contacts', 'Billing', 'Kitchen', 'DailySales', 'Receivables', 'Payables', 'Recipes', 'InventoryHub', 'CashClose', 'Settings']
+  },
+  { 
+    id: 'usr-2', 
+    name: 'Cajero de Turno', 
+    username: 'cajero', 
+    pin: '0000', 
+    role: 'cashier',
+    permissions: ['Billing', 'Kitchen', 'DailySales', 'CashClose', 'Contacts']
+  },
+  { 
+    id: 'usr-3', 
+    name: 'Cocinero / Chef', 
+    username: 'cocina', 
+    pin: '1111', 
+    role: 'cook',
+    permissions: ['Kitchen', 'Recipes']
+  },
+];
+
+export const globalCurrentUser = { 
+  id: 'usr-1', 
+  name: 'Administrador Principal', 
+  username: 'admin', 
+  role: 'admin',
+  permissions: ['Contacts', 'Billing', 'Kitchen', 'DailySales', 'Receivables', 'Payables', 'Recipes', 'InventoryHub', 'CashClose', 'Settings']
+};
+
+export const globalMasterConfig = { masterPin: 'ZHEN2026' };
+
+export const addUser = (user) => {
+  const role = user.role || 'cashier';
+  const newUser = {
+    id: 'usr-' + Date.now().toString().slice(-4),
+    name: user.name.trim(),
+    username: user.username.trim().toLowerCase(),
+    pin: user.pin.trim(),
+    role: role,
+    permissions: user.permissions || DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS.cashier
+  };
+  globalUsers.push(newUser);
+  persistData();
+  return newUser;
+};
+
+export const updateUser = (updated) => {
+  const idx = globalUsers.findIndex(u => u.id === updated.id);
+  if (idx !== -1) {
+    globalUsers[idx] = { ...globalUsers[idx], ...updated };
+    if (globalCurrentUser.id === updated.id) {
+      Object.assign(globalCurrentUser, globalUsers[idx]);
+    }
+    persistData();
+    return globalUsers[idx];
+  }
+  return null;
+};
+
+export const deleteUser = (userId) => {
+  if (globalUsers.length <= 1) throw new Error("Debe existir al menos un usuario en el sistema.");
+  if (globalCurrentUser.id === userId) throw new Error("No puede eliminar el usuario con la sesión activa.");
+  const idx = globalUsers.findIndex(u => u.id === userId);
+  if (idx !== -1) {
+    globalUsers.splice(idx, 1);
+    persistData();
+  }
+};
+
+export const setCurrentUser = (userId) => {
+  const user = globalUsers.find(u => u.id === userId);
+  if (user) {
+    Object.assign(globalCurrentUser, user);
+    persistData();
+  }
+  return globalCurrentUser;
+};
+
+export const updateMasterPin = (currentPin, newPin) => {
+  if (currentPin !== globalMasterConfig.masterPin) {
+    throw new Error("La Clave Maestra actual es incorrecta.");
+  }
+  if (!newPin || newPin.trim().length < 4) {
+    throw new Error("La nueva clave debe tener al menos 4 caracteres.");
+  }
+  globalMasterConfig.masterPin = newPin.trim();
+  persistData();
+};
+
 const STORAGE_KEY = 'RESTOSYS_LITE_DB_V1';
 
 export const persistData = () => {
   if (Platform.OS === 'web') {
     const snapshot = {
-
       globalDirectory, globalReceivables, globalPayables, globalBanks,
       globalRawMaterials, globalWip, globalFinishedGoods, globalRecipes,
       globalPurchases, globalWaste, globalShift, globalZReports,
       globalTables, globalActiveOrders, globalOrderHistory,
-        globalUsers, globalCurrentUser, globalMasterConfig
-      };
+      globalUsers, globalCurrentUser, globalMasterConfig
+    };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
       console.log("Data guardada");
@@ -519,9 +643,22 @@ export const loadData = () => {
         if (parsed.globalTables) { globalTables.length = 0; globalTables.push(...parsed.globalTables); }
         if (parsed.globalActiveOrders) { globalActiveOrders.length = 0; globalActiveOrders.push(...parsed.globalActiveOrders); }
         if (parsed.globalOrderHistory) { globalOrderHistory.length = 0; globalOrderHistory.push(...parsed.globalOrderHistory); }
-          if (parsed.globalUsers && parsed.globalUsers.length > 0) { globalUsers.length = 0; globalUsers.push(...parsed.globalUsers); }
-          if (parsed.globalCurrentUser) { Object.assign(globalCurrentUser, parsed.globalCurrentUser); }
-          if (parsed.globalMasterConfig) { Object.assign(globalMasterConfig, parsed.globalMasterConfig); }
+        if (parsed.globalUsers && parsed.globalUsers.length > 0) { 
+          globalUsers.length = 0; 
+          parsed.globalUsers.forEach(u => {
+            if (!u.permissions) {
+              u.permissions = DEFAULT_PERMISSIONS[u.role] || DEFAULT_PERMISSIONS.cashier;
+            }
+          });
+          globalUsers.push(...parsed.globalUsers); 
+        }
+        if (parsed.globalCurrentUser) { 
+          if (!parsed.globalCurrentUser.permissions) {
+            parsed.globalCurrentUser.permissions = DEFAULT_PERMISSIONS[parsed.globalCurrentUser.role] || DEFAULT_PERMISSIONS.admin;
+          }
+          Object.assign(globalCurrentUser, parsed.globalCurrentUser); 
+        }
+        if (parsed.globalMasterConfig) { Object.assign(globalMasterConfig, parsed.globalMasterConfig); }
         console.log("Data restaurada desde LocalStorage");
       }
     } catch (e) {}
@@ -698,74 +835,6 @@ export const seedSampleSalesIfEmpty = () => {
 };
 
 seedSampleSalesIfEmpty();
-
-
-// ==========================================
-// USUARIOS, ROLES Y SEGURIDAD MAESTRA
-// ==========================================
-export const globalUsers = [
-  { id: 'usr-1', name: 'Administrador Principal', username: 'admin', pin: '1234', role: 'admin' },
-  { id: 'usr-2', name: 'Cajero de Turno', username: 'cajero', pin: '0000', role: 'cashier' },
-  { id: 'usr-3', name: 'Cocinero / Chef', username: 'cocina', pin: '1111', role: 'cook' },
-];
-
-export const globalCurrentUser = { id: 'usr-1', name: 'Administrador Principal', username: 'admin', role: 'admin' };
-
-export const globalMasterConfig = { masterPin: 'ZHEN2026' };
-
-export const addUser = (user) => {
-  const newUser = {
-    id: 'usr-' + Date.now().toString().slice(-4),
-    name: user.name.trim(),
-    username: user.username.trim().toLowerCase(),
-    pin: user.pin.trim(),
-    role: user.role || 'cashier' // 'admin', 'cashier', 'cook'
-  };
-  globalUsers.push(newUser);
-  persistData();
-  return newUser;
-};
-
-export const updateUser = (updated) => {
-  const idx = globalUsers.findIndex(u => u.id === updated.id);
-  if (idx !== -1) {
-    globalUsers[idx] = { ...globalUsers[idx], ...updated };
-    if (globalCurrentUser.id === updated.id) {
-      Object.assign(globalCurrentUser, globalUsers[idx]);
-    }
-    persistData();
-  }
-};
-
-export const deleteUser = (userId) => {
-  if (globalUsers.length <= 1) throw new Error("Debe existir al menos un usuario en el sistema.");
-  if (globalCurrentUser.id === userId) throw new Error("No puede eliminar el usuario con la sesión activa.");
-  const idx = globalUsers.findIndex(u => u.id === userId);
-  if (idx !== -1) {
-    globalUsers.splice(idx, 1);
-    persistData();
-  }
-};
-
-export const setCurrentUser = (userId) => {
-  const user = globalUsers.find(u => u.id === userId);
-  if (user) {
-    Object.assign(globalCurrentUser, user);
-    persistData();
-  }
-  return globalCurrentUser;
-};
-
-export const updateMasterPin = (currentPin, newPin) => {
-  if (currentPin !== globalMasterConfig.masterPin) {
-    throw new Error("La Clave Maestra actual es incorrecta.");
-  }
-  if (!newPin || newPin.trim().length < 4) {
-    throw new Error("La nueva clave debe tener al menos 4 caracteres.");
-  }
-  globalMasterConfig.masterPin = newPin.trim();
-  persistData();
-};
 
 export const executeMasterWipe = (type, inputPin) => {
   if (inputPin !== globalMasterConfig.masterPin) {
