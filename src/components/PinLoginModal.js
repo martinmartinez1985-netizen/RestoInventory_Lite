@@ -96,7 +96,7 @@ export default function PinLoginModal({ visible, onUnlock }) {
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} transparent={false} animationType="fade">
+    <View style={styles.fullscreenOverlay}>
       <View style={styles.container}>
         <ScrollView 
           contentContainerStyle={[
@@ -222,13 +222,31 @@ export default function PinLoginModal({ visible, onUnlock }) {
         </View>
         </ScrollView>
       </View>
-    </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  fullscreenOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 999999,
+    backgroundColor: '#090d16',
+    ...Platform.select({
+      web: {
+        position: 'fixed',
+        width: '100vw',
+        height: '100vh',
+      }
+    })
+  },
   container: {
     flex: 1,
+    width: '100%',
+    height: '100%',
     backgroundColor: '#090d16',
   },
   scrollContent: {
