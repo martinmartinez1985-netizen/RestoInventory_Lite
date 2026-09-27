@@ -502,17 +502,21 @@ export const ALL_MODULE_KEYS = [
 ];
 
 export const getUserPermissions = (user) => {
-  if (!user) return DEFAULT_PERMISSIONS.admin;
+  if (!user) return ALL_MODULE_KEYS.map(m => m.key);
+  // El Dueño / Administrador siempre tiene acceso total garantizado a todos los módulos
+  if (user.role === 'admin') {
+    return ALL_MODULE_KEYS.map(m => m.key);
+  }
   if (Array.isArray(user.permissions) && user.permissions.length > 0) {
     return user.permissions;
   }
-  return DEFAULT_PERMISSIONS[user.role] || DEFAULT_PERMISSIONS.admin;
+  return DEFAULT_PERMISSIONS[user.role] || DEFAULT_PERMISSIONS.cashier;
 };
 
 export const globalUsers = [
   { 
     id: 'usr-1', 
-    name: 'Administrador Principal', 
+    name: 'Dueño / Administrador', 
     username: 'admin', 
     pin: '1234', 
     role: 'admin',
@@ -538,7 +542,7 @@ export const globalUsers = [
 
 export const globalCurrentUser = { 
   id: 'usr-1', 
-  name: 'Administrador Principal', 
+  name: 'Dueño / Administrador', 
   username: 'admin', 
   role: 'admin',
   permissions: ['Contacts', 'Billing', 'Kitchen', 'DailySales', 'Receivables', 'Payables', 'Recipes', 'InventoryHub', 'CashClose', 'Settings']

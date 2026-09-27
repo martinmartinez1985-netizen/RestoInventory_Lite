@@ -36,7 +36,7 @@ export default function DashboardScreen({ navigation }) {
   const filteredModules = MODULES.filter(m => allowedRoutes.includes(m.route));
 
   const roleLabels = {
-    admin: { label: 'Administrador', color: '#8b5cf6', bg: '#f5f3ff', icon: 'crown' },
+    admin: { label: 'Dueño / Administrador', color: '#8b5cf6', bg: '#f5f3ff', icon: 'crown' },
     cashier: { label: 'Cajero / POS', color: '#0284c7', bg: '#f0f9ff', icon: 'cash-register' },
     cook: { label: 'Cocinero / Chef', color: '#d97706', bg: '#fffbeb', icon: 'chef-hat' }
   };
