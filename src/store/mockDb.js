@@ -619,6 +619,15 @@ export const updateMasterPin = (currentPin, newPin) => {
   persistData();
 };
 
+export const globalSettings = { exchangeRate: '40.00' };
+
+export const updateExchangeRate = (rate) => {
+  if (rate !== undefined && rate !== null) {
+    globalSettings.exchangeRate = rate.toString();
+    persistData();
+  }
+};
+
 const STORAGE_KEY = 'RESTOSYS_LITE_DB_V1';
 
 export const persistData = () => {
@@ -628,7 +637,8 @@ export const persistData = () => {
       globalRawMaterials, globalWip, globalFinishedGoods, globalRecipes,
       globalPurchases, globalWaste, globalShift, globalZReports,
       globalTables, globalActiveOrders, globalOrderHistory,
-      globalUsers, globalCurrentUser, globalMasterConfig
+      globalUsers, globalCurrentUser, globalMasterConfig,
+      globalSettings
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
@@ -643,6 +653,9 @@ export const loadData = () => {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
+        if (parsed.globalSettings && parsed.globalSettings.exchangeRate) {
+          globalSettings.exchangeRate = parsed.globalSettings.exchangeRate.toString();
+        }
         if (parsed.globalDirectory) { globalDirectory.length = 0; globalDirectory.push(...parsed.globalDirectory); }
         if (parsed.globalReceivables) { globalReceivables.length = 0; globalReceivables.push(...parsed.globalReceivables); }
         if (parsed.globalPayables) { globalPayables.length = 0; globalPayables.push(...parsed.globalPayables); }
@@ -718,9 +731,6 @@ loadData();
 if (Platform.OS === 'web' && typeof window !== 'undefined') {
   setInterval(persistData, 3000); // Autoguardar cada 3 segundos
 }
-
-export const globalSettings = { exchangeRate: '40.00' };
-
 
 export const recordCompletedOrder = (order, paymentInfo = {}) => {
   const rate = paymentInfo.exchangeRate || (parseFloat(globalSettings.exchangeRate) || 40);

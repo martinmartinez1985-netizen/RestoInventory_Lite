@@ -3,7 +3,7 @@ import { TouchableOpacity, View, Text, Platform, Image, TextInput } from 'react-
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { globalSettings, globalCurrentUser } from '../store/mockDb';
+import { globalSettings, globalCurrentUser, updateExchangeRate } from '../store/mockDb';
 import PinLoginModal from '../components/PinLoginModal';
 
 import DashboardScreen from '../screens/DashboardScreen';
@@ -49,11 +49,13 @@ function PlaceholderScreen({ route }) {
 
 export default function AppNavigator() {
   const [isLocked, setIsLocked] = useState(true);
+  const [rateText, setRateText] = useState(globalSettings.exchangeRate || '40.00');
   const [, setHeaderTick] = useState(0);
   const navigationRef = useNavigationContainerRef();
 
   const handleUnlock = (user) => {
     setIsLocked(false);
+    setRateText(globalSettings.exchangeRate || '40.00');
     setHeaderTick(t => t + 1);
     if (navigationRef.isReady()) {
       navigationRef.navigate('Dashboard');
@@ -102,10 +104,14 @@ export default function AppNavigator() {
                   <MaterialCommunityIcons name="currency-usd" size={14} color="#10b981" />
                   <Text style={{ fontSize: 12, color: '#10b981', fontWeight: 'bold', marginLeft: 2 }}>TASA:</Text>
                   <TextInput 
-                    style={{ fontSize: 13, fontWeight: 'bold', color: '#047857', width: 45, outlineStyle: 'none', marginLeft: 4}}
-                    defaultValue={globalSettings.exchangeRate}
-                    onChangeText={(val) => { globalSettings.exchangeRate = val; }}
+                    style={{ fontSize: 13, fontWeight: 'bold', color: '#047857', minWidth: 45, outlineStyle: 'none', marginLeft: 4}}
+                    value={rateText}
+                    onChangeText={(val) => {
+                      setRateText(val);
+                      updateExchangeRate(val);
+                    }}
                     keyboardType="numeric"
+                    placeholder="40.00"
                   />
                 </View>
 
