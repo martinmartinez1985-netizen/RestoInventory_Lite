@@ -547,6 +547,17 @@ export const persistData = () => {
 export const loadData = () => {
   if (Platform.OS === 'web') {
     try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      // Preservar siempre la última tasa del día configurada por el usuario
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.globalSettings && parsed.globalSettings.exchangeRate) {
+            globalSettings.exchangeRate = parsed.globalSettings.exchangeRate.toString();
+          }
+        } catch (e) {}
+      }
+
       const CLEAN_KEY = 'RESTO_CLEAN_SLATE_2026_ZERO_V1';
       if (typeof localStorage !== 'undefined' && !localStorage.getItem(CLEAN_KEY)) {
         localStorage.setItem(CLEAN_KEY, 'true');
@@ -568,11 +579,9 @@ export const loadData = () => {
         globalShift.openingCash = 0;
         globalShift.sales = { usdCash: 0, usdDigital: 0, bsCash: 0, bsDigital: 0, cxc: 0 };
         persistData();
-        console.log("Sistema puesto en 0 exitosamente para inicio limpio");
+        console.log("Sistema puesto en 0 exitosamente, Tasa de cambio preservada:", globalSettings.exchangeRate);
         return;
       }
-
-      const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.globalSettings && parsed.globalSettings.exchangeRate) {
