@@ -358,6 +358,124 @@ export const deleteRawMaterial = (id) => {
   return false;
 };
 
+export const addFinishedGood = (item, recipeInfo = {}) => {
+  const fgId = item.id || ('FG-' + Date.now().toString().slice(-6));
+  const newItem = {
+    id: fgId,
+    name: (item.name || '').trim(),
+    baseType: item.baseType || 'unit',
+    baseUnit: item.baseUnit || 'Unidades',
+    baseStock: item.baseStock !== undefined ? parseFloat(item.baseStock) || 0 : 0,
+    baseCost: item.baseCost !== undefined ? parseFloat(item.baseCost) || 0 : 0,
+    minStock: item.minStock !== undefined ? parseFloat(item.minStock) || 10 : 10,
+    isDirectSale: item.isDirectSale !== undefined ? item.isDirectSale : true
+  };
+  globalFinishedGoods.push(newItem);
+
+  // Sync / create associated Recipe in globalRecipes for POS
+  const existingRecipe = globalRecipes.find(r => r.outputId === fgId);
+  if (!existingRecipe) {
+    const recId = 'REC-' + Date.now().toString().slice(-6);
+    globalRecipes.push({
+      id: recId,
+      name: newItem.name,
+      outputId: fgId,
+      outputType: 'finished',
+      yieldAmount: 1,
+      yieldUnit: 'Unidades',
+      ingredients: [], // Direct sale: no raw materials required
+      category: recipeInfo.category || 'Bebidas',
+      price: parseFloat(recipeInfo.price) || 0,
+      image: recipeInfo.image || 'https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=300&q=80'
+    });
+  } else {
+    existingRecipe.name = newItem.name;
+    if (recipeInfo.price !== undefined) existingRecipe.price = parseFloat(recipeInfo.price) || 0;
+    if (recipeInfo.category) existingRecipe.category = recipeInfo.category;
+  }
+
+  persistData();
+  return newItem;
+};
+
+export const updateFinishedGood = (id, updatedFields, recipeUpdates = {}) => {
+  const item = globalFinishedGoods.find(i => i.id === id);
+  if (item) {
+    if (updatedFields.name !== undefined) item.name = updatedFields.name.trim();
+    if (updatedFields.baseStock !== undefined) item.baseStock = parseFloat(updatedFields.baseStock) || 0;
+    if (updatedFields.minStock !== undefined) item.minStock = parseFloat(updatedFields.minStock) || 0;
+    if (updatedFields.baseCost !== undefined) item.baseCost = parseFloat(updatedFields.baseCost) || 0;
+    if (updatedFields.baseUnit !== undefined) item.baseUnit = updatedFields.baseUnit;
+    if (updatedFields.baseType !== undefined) item.baseType = updatedFields.baseType;
+    if (updatedFields.isDirectSale !== undefined) item.isDirectSale = updatedFields.isDirectSale;
+
+    // Also update associated Recipe if exists
+    const recipe = globalRecipes.find(r => r.outputId === id);
+    if (recipe) {
+      if (updatedFields.name) recipe.name = updatedFields.name.trim();
+      if (recipeUpdates.price !== undefined) recipe.price = parseFloat(recipeUpdates.price) || 0;
+      if (recipeUpdates.category) recipe.category = recipeUpdates.category;
+    }
+
+    persistData();
+    return item;
+  }
+  return null;
+};
+
+export const deleteFinishedGood = (id) => {
+  const idx = globalFinishedGoods.findIndex(i => i.id === id);
+  if (idx !== -1) {
+    globalFinishedGoods.splice(idx, 1);
+
+    // Also delete associated recipe if it's direct sale (no raw ingredients)
+    const recIdx = globalRecipes.findIndex(r => r.outputId === id && (!r.ingredients || r.ingredients.length === 0));
+    if (recIdx !== -1) {
+      globalRecipes.splice(recIdx, 1);
+    }
+
+    persistData();
+    return true;
+  }
+  return false;
+};
+
+export const syncFromCloud = async () => {
+  try {
+    const { data: materials } = await supabase.from('raw_materials').select('*', 500);
+    if (materials && Array.isArray(materials) && materials.length > 0) {
+      materials.forEach(cloudItem => {
+        const localIdx = globalRawMaterials.findIndex(m => m.id === cloudItem.id);
+        if (localIdx !== -1) {
+          globalRawMaterials[localIdx] = { ...globalRawMaterials[localIdx], ...cloudItem };
+        } else {
+          globalRawMaterials.push(cloudItem);
+        }
+      });
+    }
+
+    const { data: cloudOrders } = await supabase.from('orders').select('*', 50);
+    if (cloudOrders && Array.isArray(cloudOrders) && cloudOrders.length > 0) {
+      cloudOrders.forEach(co => {
+        let parsedItems = co.items;
+        if (typeof parsedItems === 'string') {
+          try { parsedItems = JSON.parse(parsedItems); } catch (e) {}
+        }
+        const formatted = { ...co, items: parsedItems };
+        const localIdx = globalActiveOrders.findIndex(o => o.id === co.id);
+        if (localIdx !== -1) {
+          globalActiveOrders[localIdx] = formatted;
+        } else if (co.status !== 'paid') {
+          globalActiveOrders.push(formatted);
+        }
+      });
+    }
+    persistData();
+  } catch (err) {
+    console.log("Cloud sync note:", err);
+  }
+};
+
 
 const STORAGE_KEY = 'RESTOSYS_LITE_DB_V1';
 
