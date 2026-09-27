@@ -1104,7 +1104,7 @@ const styles = StyleSheet.create({
 
   gridScroll: { flex: 1 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 20 },
-  menuCard: { width: width > 1200 ? 190 : 160, backgroundColor: COLORS.card, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border },
+  menuCard: { width: 175, backgroundColor: COLORS.card, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border },
   cardImage: { width: '100%', height: 130 },
   cardInfo: { padding: 15 },
   cardTitle: { fontSize: 14, fontWeight: 'bold', color: COLORS.text, marginBottom: 8 },

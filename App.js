@@ -61,11 +61,82 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
   }
 }
 
+class GlobalErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("GlobalErrorBoundary captured error:", error, errorInfo);
+  }
+
+  handleReset = () => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('RESTOSYS_LITE_DB_V1');
+    }
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    } else {
+      this.setState({ hasError: false, error: null });
+    }
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          padding: '24px',
+          backgroundColor: '#090d16',
+          color: '#f8fafc',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          textAlign: 'center'
+        }}>
+          <h2 style={{ fontSize: '24px', color: '#f43f5e', marginBottom: '12px' }}>
+            ⚠️ Lago Wok Zhen - Error de inicialización
+          </h2>
+          <p style={{ color: '#94a3b8', maxWidth: '500px', marginBottom: '24px', fontSize: '14px', lineHeight: '1.5' }}>
+            Ocurrió un problema temporal al cargar los datos en memoria. Puedes presionar el botón a continuación para restablecer y recargar la aplicación limpiamente.
+          </p>
+          <button 
+            onClick={this.handleReset}
+            style={{
+              backgroundColor: '#10b981',
+              color: '#ffffff',
+              border: 'none',
+              padding: '12px 28px',
+              borderRadius: '8px',
+              fontSize: '15px',
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}
+          >
+            🔄 Recargar y Restablecer
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <StatusBar style="auto" />
-      <AppNavigator />
-    </SafeAreaProvider>
+    <GlobalErrorBoundary>
+      <SafeAreaProvider>
+        <StatusBar style="auto" />
+        <AppNavigator />
+      </SafeAreaProvider>
+    </GlobalErrorBoundary>
   );
 }
+

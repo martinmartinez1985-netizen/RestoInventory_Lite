@@ -32,7 +32,7 @@ export default function PinLoginModal({ visible, onUnlock }) {
     if (visible) {
       setPin('');
       setErrorMessage('');
-      const defaultUser = globalUsers.find(u => u.id === globalCurrentUser.id) || globalUsers[0];
+      const defaultUser = (globalUsers && globalUsers.find(u => u.id === globalCurrentUser?.id)) || (globalUsers && globalUsers[0]) || null;
       setSelectedUser(defaultUser);
     }
   }, [visible]);
@@ -118,13 +118,13 @@ export default function PinLoginModal({ visible, onUnlock }) {
 
           {/* Tarjetas de Selección de Usuario */}
           <View style={[styles.usersRow, isMobile && { gap: 8, marginBottom: 16 }]}>
-            {globalUsers.map(user => {
+            {(globalUsers || []).map(user => {
               const isSelected = selectedUser && selectedUser.id === user.id;
-              const roleInfo = ROLE_COLORS[user.role] || ROLE_COLORS.cashier;
+              const roleInfo = (user?.role && ROLE_COLORS[user.role]) || ROLE_COLORS.cashier;
 
               return (
                 <TouchableOpacity 
-                  key={user.id} 
+                  key={user.id || Math.random().toString()} 
                   style={[
                     styles.userCard, 
                     isMobile && { width: '47%', minWidth: 120, paddingVertical: 10, paddingHorizontal: 8 },
@@ -140,7 +140,7 @@ export default function PinLoginModal({ visible, onUnlock }) {
                   <View style={[styles.avatarBox, isMobile && { width: 40, height: 40, borderRadius: 20, marginBottom: 4 }, { backgroundColor: roleInfo.bg }]}>
                     <MaterialCommunityIcons name={roleInfo.icon} size={isMobile ? 22 : 28} color={roleInfo.color} />
                   </View>
-                  <Text style={[styles.userNameText, isMobile && { fontSize: 12 }]} numberOfLines={1}>{user.name}</Text>
+                  <Text style={[styles.userNameText, isMobile && { fontSize: 12 }]} numberOfLines={1}>{user.name || 'Usuario'}</Text>
                   <View style={[styles.roleBadge, { backgroundColor: roleInfo.bg }]}>
                     <Text style={[styles.roleBadgeTxt, isMobile && { fontSize: 9 }, { color: roleInfo.color }]}>
                       {roleInfo.label.toUpperCase()}

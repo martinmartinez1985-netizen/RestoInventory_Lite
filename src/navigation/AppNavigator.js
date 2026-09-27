@@ -156,7 +156,7 @@ export default function AppNavigator() {
                   title="Clic para cambiar operador o bloquear sesión"
                 >
                   <View style={{
-                    backgroundColor: globalCurrentUser.role === 'owner' ? '#e11d48' : globalCurrentUser.role === 'admin' ? '#8b5cf6' : globalCurrentUser.role === 'cook' ? '#d97706' : '#0284c7',
+                    backgroundColor: globalCurrentUser?.role === 'owner' ? '#e11d48' : globalCurrentUser?.role === 'admin' ? '#8b5cf6' : globalCurrentUser?.role === 'cook' ? '#d97706' : '#0284c7',
                     width: isSmallMobile ? 22 : 24,
                     height: isSmallMobile ? 22 : 24,
                     borderRadius: 12,
@@ -165,14 +165,14 @@ export default function AppNavigator() {
                     marginRight: isSmallMobile ? 0 : 6
                   }}>
                     <MaterialCommunityIcons 
-                      name={globalCurrentUser.role === 'owner' ? 'shield-crown' : globalCurrentUser.role === 'admin' ? 'shield-account' : globalCurrentUser.role === 'cook' ? 'chef-hat' : 'account'} 
+                      name={globalCurrentUser?.role === 'owner' ? 'shield-crown' : globalCurrentUser?.role === 'admin' ? 'shield-account' : globalCurrentUser?.role === 'cook' ? 'chef-hat' : 'account'} 
                       size={isSmallMobile ? 12 : 14} 
                       color="#ffffff" 
                     />
                   </View>
                   {!isSmallMobile && (
                     <Text style={{ fontSize: 13, color: '#1e293b', fontWeight: 'bold' }}>
-                      {globalCurrentUser.role === 'owner' ? '🛡️ Sistema' : globalCurrentUser.name.split(' ')[0]}
+                      {globalCurrentUser?.role === 'owner' ? '🛡️ Sistema' : (globalCurrentUser?.name || 'Usuario').split(' ')[0]}
                     </Text>
                   )}
                 </TouchableOpacity>
