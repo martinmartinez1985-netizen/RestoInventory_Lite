@@ -516,11 +516,20 @@ export const updateMasterPin = (currentPin, newPin) => {
   persistData();
 };
 
-export const globalSettings = { exchangeRate: '40.00' };
+export const RATE_STORAGE_KEY = 'RESTOSYS_EXCHANGE_RATE_V1';
+
+export const globalSettings = { 
+  exchangeRate: (Platform.OS === 'web' && typeof localStorage !== 'undefined' && localStorage.getItem(RATE_STORAGE_KEY)) || '40.00' 
+};
 
 export const updateExchangeRate = (rate) => {
   if (rate !== undefined && rate !== null) {
     globalSettings.exchangeRate = rate.toString();
+    if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(RATE_STORAGE_KEY, rate.toString());
+      } catch (e) {}
+    }
     persistData();
   }
 };
@@ -547,13 +556,22 @@ export const persistData = () => {
 export const loadData = () => {
   if (Platform.OS === 'web') {
     try {
+      // 1. Cargar la tasa desde su clave blindada independiente
+      if (typeof localStorage !== 'undefined') {
+        const isolatedRate = localStorage.getItem(RATE_STORAGE_KEY);
+        if (isolatedRate) {
+          globalSettings.exchangeRate = isolatedRate;
+        }
+      }
+
       const saved = localStorage.getItem(STORAGE_KEY);
-      // Preservar siempre la última tasa del día configurada por el usuario
-      if (saved) {
+      // Respaldo secundario para la tasa
+      if (saved && (!globalSettings.exchangeRate || globalSettings.exchangeRate === '40.00')) {
         try {
           const parsed = JSON.parse(saved);
           if (parsed.globalSettings && parsed.globalSettings.exchangeRate) {
             globalSettings.exchangeRate = parsed.globalSettings.exchangeRate.toString();
+            try { localStorage.setItem(RATE_STORAGE_KEY, globalSettings.exchangeRate); } catch (e) {}
           }
         } catch (e) {}
       }
