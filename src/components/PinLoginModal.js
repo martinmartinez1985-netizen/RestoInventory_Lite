@@ -12,7 +12,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalUsers, globalCurrentUser, setCurrentUser, globalMasterConfig } from '../store/mockDb';
 
 const ROLE_COLORS = {
-  owner: { color: '#e11d48', bg: '#ffe4e6', label: 'Dueño', icon: 'crown' },
+  owner: { color: '#e11d48', bg: '#ffe4e6', label: 'Sistema', icon: 'shield-crown' },
   admin: { color: '#8b5cf6', bg: '#f5f3ff', label: 'Administrador', icon: 'shield-account' },
   cashier: { color: '#0284c7', bg: '#f0f9ff', label: 'Cajero / POS', icon: 'cash-register' },
   cook: { color: '#d97706', bg: '#fffbeb', label: 'Cocinero / Chef', icon: 'chef-hat' }

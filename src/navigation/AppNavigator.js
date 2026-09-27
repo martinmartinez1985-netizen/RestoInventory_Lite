@@ -152,13 +152,13 @@ export default function AppNavigator() {
                     marginRight: 6
                   }}>
                     <MaterialCommunityIcons 
-                      name={globalCurrentUser.role === 'owner' ? 'crown' : globalCurrentUser.role === 'admin' ? 'shield-account' : globalCurrentUser.role === 'cook' ? 'chef-hat' : 'account'} 
+                      name={globalCurrentUser.role === 'owner' ? 'shield-crown' : globalCurrentUser.role === 'admin' ? 'shield-account' : globalCurrentUser.role === 'cook' ? 'chef-hat' : 'account'} 
                       size={14} 
                       color="#ffffff" 
                     />
                   </View>
                   <Text style={{ fontSize: 13, color: '#1e293b', fontWeight: 'bold' }}>
-                    {globalCurrentUser.role === 'owner' ? '👑 Dueño' : globalCurrentUser.name.split(' ')[0]}
+                    {globalCurrentUser.role === 'owner' ? '🛡️ Sistema' : globalCurrentUser.name.split(' ')[0]}
                   </Text>
                 </TouchableOpacity>
 

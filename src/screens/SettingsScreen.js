@@ -49,12 +49,12 @@ const COLORS = {
 
 const ROLE_INFO = {
   owner: {
-    label: 'Dueño',
-    icon: 'crown',
+    label: 'Sistema',
+    icon: 'shield-crown',
     color: '#e11d48',
     bgColor: '#ffe4e6',
     borderColor: '#fecdd3',
-    desc: 'Propietario del negocio. Acceso supremo incondicional a todos los módulos y funciones.'
+    desc: 'Control maestro del sistema. Acceso supremo e incondicional a todos los módulos y funciones.'
   },
   admin: {
     label: 'Administrador',
@@ -565,8 +565,8 @@ export default function SettingsScreen({ navigation }) {
                 <View style={styles.guideGrid}>
                   
                   <View style={[styles.guideCol, { borderTopColor: '#e11d48' }]}>
-                    <Text style={[styles.guideRoleName, { color: '#e11d48' }]}>👑 Dueño (Propietario)</Text>
-                    <Text style={styles.guideRoleSub}>Control supremo incondicional</Text>
+                    <Text style={[styles.guideRoleName, { color: '#e11d48' }]}>🛡️ Sistema (Master)</Text>
+                    <Text style={styles.guideRoleSub}>Control maestro incondicional</Text>
                     <View style={{ gap: 6, marginTop: 10 }}>
                       <Text style={styles.guideItemOk}>✔ Acceso total a los 10 módulos</Text>
                       <Text style={styles.guideItemOk}>✔ Finanzas y Cuentas por Cobrar/Pagar</Text>

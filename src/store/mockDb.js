@@ -517,8 +517,8 @@ export const getUserPermissions = (user) => {
 export const globalUsers = [
   { 
     id: 'usr-owner', 
-    name: 'Dueño del Negocio', 
-    username: 'dueno', 
+    name: 'Sistema', 
+    username: 'sistema', 
     pin: '1234', 
     role: 'owner',
     permissions: ['Contacts', 'Billing', 'Kitchen', 'DailySales', 'Receivables', 'Payables', 'Recipes', 'InventoryHub', 'CashClose', 'Settings']
@@ -551,8 +551,8 @@ export const globalUsers = [
 
 export const globalCurrentUser = { 
   id: 'usr-owner', 
-  name: 'Dueño del Negocio', 
-  username: 'dueno', 
+  name: 'Sistema', 
+  username: 'sistema', 
   role: 'owner',
   permissions: ['Contacts', 'Billing', 'Kitchen', 'DailySales', 'Receivables', 'Payables', 'Recipes', 'InventoryHub', 'CashClose', 'Settings']
 };
@@ -667,19 +667,23 @@ export const loadData = () => {
           });
           globalUsers.push(...parsed.globalUsers); 
 
-          // Garantizar que existan tanto el Dueño como el Administrador
-          const hasOwner = globalUsers.some(u => u.role === 'owner' || u.id === 'usr-owner');
-          const hasAdmin = globalUsers.some(u => u.role === 'admin' || u.id === 'usr-admin');
-          if (!hasOwner) {
+          // Garantizar que existan tanto Sistema (Dueño del software) como el Administrador
+          const ownerUser = globalUsers.find(u => u.role === 'owner' || u.id === 'usr-owner');
+          if (ownerUser) {
+            ownerUser.name = 'Sistema';
+            ownerUser.username = 'sistema';
+          } else {
             globalUsers.unshift({
               id: 'usr-owner',
-              name: 'Dueño del Negocio',
-              username: 'dueno',
+              name: 'Sistema',
+              username: 'sistema',
               pin: '1234',
               role: 'owner',
               permissions: ALL_MODULE_KEYS.map(m => m.key)
             });
           }
+
+          const hasAdmin = globalUsers.some(u => u.role === 'admin' || u.id === 'usr-admin');
           if (!hasAdmin) {
             globalUsers.splice(1, 0, {
               id: 'usr-admin',
@@ -694,6 +698,10 @@ export const loadData = () => {
         if (parsed.globalCurrentUser) { 
           if (!parsed.globalCurrentUser.permissions) {
             parsed.globalCurrentUser.permissions = DEFAULT_PERMISSIONS[parsed.globalCurrentUser.role] || DEFAULT_PERMISSIONS.admin;
+          }
+          if (parsed.globalCurrentUser.role === 'owner') {
+            parsed.globalCurrentUser.name = 'Sistema';
+            parsed.globalCurrentUser.username = 'sistema';
           }
           Object.assign(globalCurrentUser, parsed.globalCurrentUser); 
         }
