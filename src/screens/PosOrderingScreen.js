@@ -126,7 +126,32 @@ export default function PosOrderingScreen({ route, navigation }) {
 
   useEffect(() => {
     const o = globalActiveOrders.find(o => o.id === orderId);
-    if (o) setOrder(o);
+    if (o) {
+      if (Array.isArray(o.items)) {
+        const consolidated = [];
+        o.items.forEach(item => {
+          const match = consolidated.find(c => (c.recipeId && item.recipeId && c.recipeId === item.recipeId) || c.name === item.name);
+          if (match) {
+            match.qty += item.qty;
+            if (item.sentToKitchen) {
+              match.sentQty = (match.sentQty || 0) + item.qty;
+            }
+            if (match.sentQty >= match.qty) {
+              match.sentToKitchen = true;
+            } else {
+              match.sentToKitchen = false;
+            }
+          } else {
+            consolidated.push({
+              ...item,
+              sentQty: item.sentToKitchen ? item.qty : (item.sentQty || 0)
+            });
+          }
+        });
+        o.items = consolidated;
+      }
+      setOrder(o);
+    }
   }, [orderId]);
 
   if (!order) return <View style={{flex: 1, backgroundColor: COLORS.bg, justifyContent: 'center', alignItems: 'center'}}><Text style={{color: COLORS.text}}>Cargando orden...</Text></View>;
@@ -150,18 +175,37 @@ export default function PosOrderingScreen({ route, navigation }) {
   };
 
   const addItem = (recipe) => {
-    const existing = order.items.find(i => i.recipeId === recipe.id);
+    const targetId = recipe.id || recipe.recipeId;
+    const existing = order.items.find(i => (targetId && (i.recipeId === targetId || i.id === targetId)) || i.name === recipe.name);
     if (existing) {
       existing.qty += 1;
+      if (existing.sentToKitchen && existing.sentQty === undefined) {
+        existing.sentQty = existing.qty - 1;
+      }
+      if (existing.sentQty !== undefined && existing.qty > existing.sentQty) {
+        existing.sentToKitchen = false;
+      }
     } else {
       order.items.push({
-        recipeId: recipe.id,
+        recipeId: targetId,
         name: recipe.name,
         qty: 1,
-        price: recipe.price || 15.99, // Fallback para platos viejos sin precio
+        sentQty: 0,
+        price: recipe.price || recipe.salePrice || 15.99,
         sentToKitchen: false,
         image: recipe.image || getImageForCategory(recipe.category)
       });
+    }
+    recalcTotal();
+  };
+
+  const increaseQty = (item) => {
+    item.qty += 1;
+    if (item.sentToKitchen && item.sentQty === undefined) {
+      item.sentQty = item.qty - 1;
+    }
+    if (item.sentQty !== undefined && item.qty > item.sentQty) {
+      item.sentToKitchen = false;
     }
     recalcTotal();
   };
@@ -172,44 +216,54 @@ export default function PosOrderingScreen({ route, navigation }) {
   };
 
   const sendToKitchen = () => {
-      let successCount = 0;
-      try {
-        order.items.forEach(item => {
-          if (!item.sentToKitchen) {
-            processProductionBatch(item.recipeId, item.qty);
-            const recipe = globalRecipes.find(r => r.id === item.recipeId);
-            updateStock(recipe.outputId, -item.qty);
-            item.sentToKitchen = true;
-            successCount++;
+    let successCount = 0;
+    try {
+      order.items.forEach(item => {
+        const alreadySent = item.sentQty !== undefined ? item.sentQty : (item.sentToKitchen ? item.qty : 0);
+        const qtyToSend = item.qty - alreadySent;
+        if (qtyToSend > 0) {
+          processProductionBatch(item.recipeId, qtyToSend);
+          const recipe = globalRecipes.find(r => r.id === item.recipeId || r.name === item.name);
+          if (recipe && recipe.outputId) {
+            updateStock(recipe.outputId, -qtyToSend);
           }
-        });
-        persistData();
-        pushOrderToCloud(order);
-        setTicketModalType('kitchen');
-        setTicketModalVisible(true);
-        setTick(t => t + 1);
-      } catch (err) {
+          item.sentQty = item.qty;
+          item.sentToKitchen = true;
+          successCount++;
+        }
+      });
+      persistData();
+      try { pushOrderToCloud(order); } catch (e) {}
+      setTicketModalType('kitchen');
+      setTicketModalVisible(true);
+      setTick(t => t + 1);
+    } catch (err) {
       alert("Error al procesar inventario: " + err.message);
     }
   };
 
   const reverseInventory = (recipeId, qty) => {
-    const recipe = globalRecipes.find(r => r.id === recipeId);
+    const recipe = globalRecipes.find(r => r.id === recipeId || r.name === recipeId);
     if (recipe && recipe.ingredients) {
       recipe.ingredients.forEach(ing => {
-        updateStock(ing.id, ing.amount * qty); // Devolver la materia prima al almacén
+        updateStock(ing.id, ing.amount * qty);
       });
     }
   };
 
   const decreaseQty = (item) => {
-    if (item.sentToKitchen) {
-      if (!window.confirm("Este plato ya está en cocina. Si reduces la cantidad, los ingredientes se devolverán al almacén virtual. ¿Continuar?")) return;
-      reverseInventory(item.recipeId, 1);
+    const isSent = item.sentToKitchen || (item.sentQty && item.sentQty >= item.qty);
+    if (isSent) {
+      if (!window.confirm("Este plato ya está en cocina. Si reduces la cantidad, los ingredientes se devolverán al almacén. ¿Continuar?")) return;
+      reverseInventory(item.recipeId || item.name, 1);
+      if (item.sentQty && item.sentQty > 0) item.sentQty -= 1;
     }
     
     if (item.qty > 1) {
       item.qty -= 1;
+      if (item.sentQty !== undefined && item.sentQty >= item.qty) {
+        item.sentToKitchen = true;
+      }
     } else {
       order.items = order.items.filter(i => i !== item);
     }
@@ -217,9 +271,10 @@ export default function PosOrderingScreen({ route, navigation }) {
   };
 
   const removeItem = (item) => {
-    if (item.sentToKitchen) {
-      if (!window.confirm("Este plato ya está en cocina. Si lo borras, los ingredientes se devolverán al almacén virtual. ¿Continuar?")) return;
-      reverseInventory(item.recipeId, item.qty);
+    const sentCount = item.sentQty || (item.sentToKitchen ? item.qty : 0);
+    if (sentCount > 0) {
+      if (!window.confirm("Este plato ya tiene unidades en cocina. Si lo borras, los ingredientes se devolverán al almacén. ¿Continuar?")) return;
+      reverseInventory(item.recipeId || item.name, sentCount);
     }
     
     order.items = order.items.filter(i => i !== item);
@@ -401,7 +456,13 @@ export default function PosOrderingScreen({ route, navigation }) {
                       <Image source={{uri: item.image}} style={styles.thumb} />
                       <View style={{marginLeft: 10, flex: 1}}>
                         <Text style={styles.tiName} numberOfLines={1}>{item.qty}x {item.name}</Text>
-                        <Text style={styles.tiNote}>{item.sentToKitchen ? '✅ En Cocina' : '⏳ Pendiente'}</Text>
+                        <Text style={styles.tiNote}>
+                          {item.sentToKitchen && (item.sentQty === undefined || item.sentQty >= item.qty) 
+                            ? '✅ En Cocina' 
+                            : (item.sentQty && item.sentQty > 0 
+                                ? `🟡 ${item.sentQty} en cocina / ${item.qty - item.sentQty} pendiente` 
+                                : '⏳ Pendiente')}
+                        </Text>
                       </View>
                     </View>
                     <Text style={styles.tiPrice}>${formatMoney(item.price * item.qty)}</Text>
@@ -414,7 +475,7 @@ export default function PosOrderingScreen({ route, navigation }) {
                     
                     <Text style={styles.qtyText}>{item.qty}</Text>
                     
-                    <TouchableOpacity onPress={() => addItem(item)} style={styles.qtyBtn}>
+                    <TouchableOpacity onPress={() => increaseQty(item)} style={styles.qtyBtn}>
                       <MaterialCommunityIcons name="plus" size={16} color={COLORS.text} />
                     </TouchableOpacity>
                     
