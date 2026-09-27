@@ -97,11 +97,16 @@ export default function PosOrderingScreen({ route, navigation }) {
   const filteredClients = globalDirectory.filter(c => c.type === 'Clientes' && (c.name.toLowerCase().includes(clientSearch.toLowerCase()) || c.docId.toLowerCase().includes(clientSearch.toLowerCase())));
 
   const selectClient = (client) => {
+    if (!client) return;
     setClientName(client.name);
     setClientId(client.docId);
-    if(order) { order.customerName = client.name; order.clientId = client.docId; }
+    if (order) { 
+      order.customerName = client.name; 
+      order.clientId = client.docId; 
+      persistData();
+    }
     setIsClientModalVisible(false);
-    setTick(t => t+1);
+    setTick(t => t + 1);
   };
 
   const handleCreateClient = () => {
@@ -149,6 +154,15 @@ export default function PosOrderingScreen({ route, navigation }) {
           }
         });
         o.items = consolidated;
+      }
+      if (o.customerName && o.customerName !== 'Cliente General') {
+        setClientName(o.customerName);
+      }
+      if (o.clientId && o.clientId !== 'Sin Doc') {
+        setClientId(o.clientId);
+      } else if (o.customerName) {
+        const matchContact = globalDirectory.find(c => c.name.toLowerCase() === o.customerName.toLowerCase());
+        if (matchContact) setClientId(matchContact.docId);
       }
       setOrder(o);
     }
@@ -341,6 +355,21 @@ export default function PosOrderingScreen({ route, navigation }) {
     setTicketModalVisible(true);
   };
 
+  const handleOpenCheckout = () => {
+    if (order) {
+      if (order.customerName && order.customerName !== 'Cliente General') {
+        setClientName(order.customerName);
+      }
+      if (order.clientId && order.clientId !== 'Sin Doc') {
+        setClientId(order.clientId);
+      } else if (order.customerName) {
+        const found = globalDirectory.find(c => c.name.toLowerCase() === order.customerName.toLowerCase());
+        if (found) setClientId(found.docId);
+      }
+    }
+    setCheckoutVisible(true);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -530,7 +559,7 @@ export default function PosOrderingScreen({ route, navigation }) {
 
             <TouchableOpacity 
               style={{flex: 2, backgroundColor: '#10b981', padding: 15, borderRadius: 12, alignItems: 'center', justifyContent: 'center', ...Platform.select({ web: { boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)' } })}}
-              onPress={() => setCheckoutVisible(true)}
+              onPress={handleOpenCheckout}
             >
               <MaterialCommunityIcons name="cash-register" size={24} color="#fff" />
               <Text style={{color: '#fff', fontWeight: '900', fontSize: 16, marginTop: 4}}>COBRAR</Text>
@@ -661,35 +690,96 @@ export default function PosOrderingScreen({ route, navigation }) {
               </View>
 
               {/* Datos del Cliente y Tasa */}
-              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
-                <View style={{ flex: 2 }}>
-                  <Text style={{ color: COLORS.textMuted, fontSize: 11, marginBottom: 4, fontWeight: 'bold' }}>CLIENTE / RAZÓN SOCIAL</Text>
-                  <TextInput 
-                    style={{ backgroundColor: COLORS.bg, color: COLORS.text, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, outlineStyle: 'none', fontSize: 13 }} 
-                    value={clientName} 
-                    onChangeText={(val) => { setClientName(val); order.customerName = val; }} 
-                    placeholder="Consumidor Final" 
-                    placeholderTextColor={COLORS.textMuted}
-                  />
+              <View style={{ marginBottom: 15 }}>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 2 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <Text style={{ color: COLORS.textMuted, fontSize: 11, fontWeight: 'bold' }}>CLIENTE / RAZÓN SOCIAL</Text>
+                      <TouchableOpacity 
+                        onPress={() => setIsClientModalVisible(true)}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#0284c720', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 }}
+                      >
+                        <MaterialCommunityIcons name="account-search" size={13} color="#38bdf8" />
+                        <Text style={{ color: '#38bdf8', fontSize: 11, fontWeight: 'bold' }}>Directorio</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <TextInput 
+                      style={{ backgroundColor: COLORS.bg, color: COLORS.text, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, outlineStyle: 'none', fontSize: 13 }} 
+                      value={clientName} 
+                      onChangeText={(val) => { 
+                        setClientName(val); 
+                        if (order) order.customerName = val; 
+                        const match = globalDirectory.find(c => c.name.toLowerCase() === val.toLowerCase().trim());
+                        if (match) {
+                          setClientId(match.docId);
+                          if (order) order.clientId = match.docId;
+                        }
+                      }} 
+                      placeholder="Consumidor Final" 
+                      placeholderTextColor={COLORS.textMuted}
+                    />
+                  </View>
+                  <View style={{ flex: 1.2 }}>
+                    <Text style={{ color: COLORS.textMuted, fontSize: 11, marginBottom: 4, fontWeight: 'bold' }}>CÉDULA / RIF</Text>
+                    <TextInput 
+                      style={{ backgroundColor: COLORS.bg, color: COLORS.text, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, outlineStyle: 'none', fontSize: 13 }} 
+                      value={clientId} 
+                      onChangeText={(val) => { 
+                        setClientId(val); 
+                        if (order) order.clientId = val; 
+                      }} 
+                      placeholder="V-000000" 
+                      placeholderTextColor={COLORS.textMuted}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: COLORS.textMuted, fontSize: 11, marginBottom: 4, fontWeight: 'bold' }}>TASA (Bs/$)</Text>
+                    <TextInput 
+                      style={{ backgroundColor: COLORS.bg, color: COLORS.text, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, outlineStyle: 'none', fontSize: 13, fontWeight: 'bold' }} 
+                      value={exchangeRate} 
+                      onChangeText={setExchangeRate} 
+                      keyboardType="numeric"
+                    />
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: COLORS.textMuted, fontSize: 11, marginBottom: 4, fontWeight: 'bold' }}>CÉDULA / RIF</Text>
-                  <TextInput 
-                    style={{ backgroundColor: COLORS.bg, color: COLORS.text, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, outlineStyle: 'none', fontSize: 13 }} 
-                    value={clientId} 
-                    onChangeText={setClientId} 
-                    placeholder="V-000000" 
-                    placeholderTextColor={COLORS.textMuted}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: COLORS.textMuted, fontSize: 11, marginBottom: 4, fontWeight: 'bold' }}>TASA (Bs/$)</Text>
-                  <TextInput 
-                    style={{ backgroundColor: COLORS.bg, color: COLORS.text, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, outlineStyle: 'none', fontSize: 13, fontWeight: 'bold' }} 
-                    value={exchangeRate} 
-                    onChangeText={setExchangeRate} 
-                    keyboardType="numeric"
-                  />
+
+                {/* Chips de Selección Rápida de Clientes del Directorio */}
+                <View style={{ marginTop: 8 }}>
+                  <Text style={{ color: COLORS.textMuted, fontSize: 10, marginBottom: 4 }}>
+                    {clientName ? `Asignado: ${clientName} (${clientId || 'Sin Doc'}) - Toca para cambiar:` : 'Clientes registrados (toca para asignar a la cuenta):'}
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      {globalDirectory.filter(c => c.type === 'Clientes').slice(0, 8).map(c => {
+                        const isSelected = clientName && clientName.toUpperCase() === c.name.toUpperCase();
+                        return (
+                          <TouchableOpacity 
+                            key={c.id} 
+                            onPress={() => selectClient(c)}
+                            style={{ 
+                              backgroundColor: isSelected ? '#0284c7' : '#1e293b', 
+                              borderWidth: 1, 
+                              borderColor: isSelected ? '#38bdf8' : COLORS.border, 
+                              paddingHorizontal: 9, 
+                              paddingVertical: 5, 
+                              borderRadius: 6,
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <MaterialCommunityIcons name="account" size={13} color={isSelected ? '#fff' : '#38bdf8'} />
+                            <Text style={{ color: isSelected ? '#fff' : '#e2e8f0', fontSize: 11, fontWeight: 'bold' }}>
+                              {c.name}
+                            </Text>
+                            <Text style={{ color: isSelected ? '#e0f2fe' : COLORS.textMuted, fontSize: 10 }}>
+                              ({c.docId})
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
                 </View>
               </View>
 

@@ -21,12 +21,14 @@ export const globalDirectory = [
 
 export const addContactToGlobal = (contact) => {
   globalDirectory.unshift(contact);
+  persistData();
 };
 
 export const updateContactInGlobal = (contact) => {
   const index = globalDirectory.findIndex(c => c.id === contact.id);
   if (index !== -1) {
     globalDirectory[index] = contact;
+    persistData();
   }
 };
 
