@@ -483,6 +483,7 @@ export const syncFromCloud = async () => {
 // USUARIOS, ROLES Y SEGURIDAD MAESTRA
 // ==========================================
 export const DEFAULT_PERMISSIONS = {
+  owner: ['Contacts', 'Billing', 'Kitchen', 'DailySales', 'Receivables', 'Payables', 'Recipes', 'InventoryHub', 'CashClose', 'Settings'],
   admin: ['Contacts', 'Billing', 'Kitchen', 'DailySales', 'Receivables', 'Payables', 'Recipes', 'InventoryHub', 'CashClose', 'Settings'],
   cashier: ['Billing', 'Kitchen', 'DailySales', 'CashClose', 'Contacts'],
   cook: ['Kitchen', 'Recipes']
@@ -503,8 +504,8 @@ export const ALL_MODULE_KEYS = [
 
 export const getUserPermissions = (user) => {
   if (!user) return ALL_MODULE_KEYS.map(m => m.key);
-  // El Dueño / Administrador siempre tiene acceso total garantizado a todos los módulos
-  if (user.role === 'admin') {
+  // El Dueño siempre tiene acceso total garantizado e inmutable a los 10 módulos
+  if (user.role === 'owner') {
     return ALL_MODULE_KEYS.map(m => m.key);
   }
   if (Array.isArray(user.permissions) && user.permissions.length > 0) {
@@ -515,10 +516,18 @@ export const getUserPermissions = (user) => {
 
 export const globalUsers = [
   { 
-    id: 'usr-1', 
-    name: 'Dueño / Administrador', 
-    username: 'admin', 
+    id: 'usr-owner', 
+    name: 'Dueño del Negocio', 
+    username: 'dueno', 
     pin: '1234', 
+    role: 'owner',
+    permissions: ['Contacts', 'Billing', 'Kitchen', 'DailySales', 'Receivables', 'Payables', 'Recipes', 'InventoryHub', 'CashClose', 'Settings']
+  },
+  { 
+    id: 'usr-admin', 
+    name: 'Administrador / Gerente', 
+    username: 'admin', 
+    pin: '2026', 
     role: 'admin',
     permissions: ['Contacts', 'Billing', 'Kitchen', 'DailySales', 'Receivables', 'Payables', 'Recipes', 'InventoryHub', 'CashClose', 'Settings']
   },
@@ -541,10 +550,10 @@ export const globalUsers = [
 ];
 
 export const globalCurrentUser = { 
-  id: 'usr-1', 
-  name: 'Dueño / Administrador', 
-  username: 'admin', 
-  role: 'admin',
+  id: 'usr-owner', 
+  name: 'Dueño del Negocio', 
+  username: 'dueno', 
+  role: 'owner',
   permissions: ['Contacts', 'Billing', 'Kitchen', 'DailySales', 'Receivables', 'Payables', 'Recipes', 'InventoryHub', 'CashClose', 'Settings']
 };
 
@@ -581,6 +590,8 @@ export const updateUser = (updated) => {
 export const deleteUser = (userId) => {
   if (globalUsers.length <= 1) throw new Error("Debe existir al menos un usuario en el sistema.");
   if (globalCurrentUser.id === userId) throw new Error("No puede eliminar el usuario con la sesión activa.");
+  const target = globalUsers.find(u => u.id === userId);
+  if (target && target.role === 'owner') throw new Error("El perfil del Dueño no puede ser eliminado.");
   const idx = globalUsers.findIndex(u => u.id === userId);
   if (idx !== -1) {
     globalUsers.splice(idx, 1);
@@ -655,6 +666,30 @@ export const loadData = () => {
             }
           });
           globalUsers.push(...parsed.globalUsers); 
+
+          // Garantizar que existan tanto el Dueño como el Administrador
+          const hasOwner = globalUsers.some(u => u.role === 'owner' || u.id === 'usr-owner');
+          const hasAdmin = globalUsers.some(u => u.role === 'admin' || u.id === 'usr-admin');
+          if (!hasOwner) {
+            globalUsers.unshift({
+              id: 'usr-owner',
+              name: 'Dueño del Negocio',
+              username: 'dueno',
+              pin: '1234',
+              role: 'owner',
+              permissions: ALL_MODULE_KEYS.map(m => m.key)
+            });
+          }
+          if (!hasAdmin) {
+            globalUsers.splice(1, 0, {
+              id: 'usr-admin',
+              name: 'Administrador / Gerente',
+              username: 'admin',
+              pin: '2026',
+              role: 'admin',
+              permissions: ALL_MODULE_KEYS.map(m => m.key)
+            });
+          }
         }
         if (parsed.globalCurrentUser) { 
           if (!parsed.globalCurrentUser.permissions) {

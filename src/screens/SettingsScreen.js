@@ -48,13 +48,21 @@ const COLORS = {
 };
 
 const ROLE_INFO = {
+  owner: {
+    label: 'Dueño',
+    icon: 'crown',
+    color: '#e11d48',
+    bgColor: '#ffe4e6',
+    borderColor: '#fecdd3',
+    desc: 'Propietario del negocio. Acceso supremo incondicional a todos los módulos y funciones.'
+  },
   admin: {
     label: 'Administrador',
-    icon: 'crown',
+    icon: 'shield-account',
     color: '#8b5cf6',
     bgColor: '#f5f3ff',
     borderColor: '#ddd6fe',
-    desc: 'Acceso total a finanzas, inventarios, recetas, configuración y borrado.'
+    desc: 'Gerente administrativo. Control y supervisión de operaciones.'
   },
   cashier: {
     label: 'Cajero',
@@ -556,15 +564,26 @@ export default function SettingsScreen({ navigation }) {
                 <Text style={styles.guideTitle}>Matriz de Permisos por Rol de Trabajo</Text>
                 <View style={styles.guideGrid}>
                   
-                  <View style={[styles.guideCol, { borderTopColor: '#8b5cf6' }]}>
-                    <Text style={[styles.guideRoleName, { color: '#8b5cf6' }]}>👑 Administrador</Text>
-                    <Text style={styles.guideRoleSub}>Control gerencial total</Text>
+                  <View style={[styles.guideCol, { borderTopColor: '#e11d48' }]}>
+                    <Text style={[styles.guideRoleName, { color: '#e11d48' }]}>👑 Dueño (Propietario)</Text>
+                    <Text style={styles.guideRoleSub}>Control supremo incondicional</Text>
                     <View style={{ gap: 6, marginTop: 10 }}>
                       <Text style={styles.guideItemOk}>✔ Acceso total a los 10 módulos</Text>
-                      <Text style={styles.guideItemOk}>✔ Finanzas, Cuentas por Cobrar/Pagar</Text>
-                      <Text style={styles.guideItemOk}>✔ Ajuste de Recetas, Costos e Inventario</Text>
-                      <Text style={styles.guideItemOk}>✔ Creación de Usuarios y Clave Maestra</Text>
-                      <Text style={styles.guideItemOk}>✔ Ejecución de Borrado General</Text>
+                      <Text style={styles.guideItemOk}>✔ Finanzas y Cuentas por Cobrar/Pagar</Text>
+                      <Text style={styles.guideItemOk}>✔ Gestión y asignación de permisos</Text>
+                      <Text style={styles.guideItemOk}>✔ Clave Maestra y Borrado General</Text>
+                      <Text style={styles.guideItemOk}>✔ No puede ser bloqueado ni borrado</Text>
+                    </View>
+                  </View>
+
+                  <View style={[styles.guideCol, { borderTopColor: '#8b5cf6' }]}>
+                    <Text style={[styles.guideRoleName, { color: '#8b5cf6' }]}>👔 Administrador</Text>
+                    <Text style={styles.guideRoleSub}>Gerencia y supervisión</Text>
+                    <View style={{ gap: 6, marginTop: 10 }}>
+                      <Text style={styles.guideItemOk}>✔ Operación general del negocio</Text>
+                      <Text style={styles.guideItemOk}>✔ Facturación, POS y Ventas</Text>
+                      <Text style={styles.guideItemOk}>✔ Inventario, Compras y Recetas</Text>
+                      <Text style={styles.guideItemOk}>✔ Módulos personalizables por el Dueño</Text>
                     </View>
                   </View>
 
@@ -897,7 +916,8 @@ export default function SettingsScreen({ navigation }) {
                     {[
                       { key: 'cashier', label: 'Cajero', icon: 'cash-register' },
                       { key: 'cook', label: 'Cocinero', icon: 'chef-hat' },
-                      { key: 'admin', label: 'Admin', icon: 'crown' }
+                      { key: 'admin', label: 'Admin', icon: 'shield-account' },
+                      { key: 'owner', label: 'Dueño', icon: 'crown' }
                     ].map(r => (
                       <TouchableOpacity
                         key={r.key}

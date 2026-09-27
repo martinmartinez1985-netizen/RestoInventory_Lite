@@ -143,7 +143,7 @@ export default function AppNavigator() {
                   title="Clic para cambiar operador o bloquear sesión"
                 >
                   <View style={{
-                    backgroundColor: globalCurrentUser.role === 'admin' ? '#8b5cf6' : globalCurrentUser.role === 'cook' ? '#d97706' : '#0284c7',
+                    backgroundColor: globalCurrentUser.role === 'owner' ? '#e11d48' : globalCurrentUser.role === 'admin' ? '#8b5cf6' : globalCurrentUser.role === 'cook' ? '#d97706' : '#0284c7',
                     width: 24,
                     height: 24,
                     borderRadius: 12,
@@ -152,13 +152,13 @@ export default function AppNavigator() {
                     marginRight: 6
                   }}>
                     <MaterialCommunityIcons 
-                      name={globalCurrentUser.role === 'admin' ? 'crown' : globalCurrentUser.role === 'cook' ? 'chef-hat' : 'account'} 
+                      name={globalCurrentUser.role === 'owner' ? 'crown' : globalCurrentUser.role === 'admin' ? 'shield-account' : globalCurrentUser.role === 'cook' ? 'chef-hat' : 'account'} 
                       size={14} 
                       color="#ffffff" 
                     />
                   </View>
                   <Text style={{ fontSize: 13, color: '#1e293b', fontWeight: 'bold' }}>
-                    {globalCurrentUser.name.split(' ')[0]}
+                    {globalCurrentUser.role === 'owner' ? '👑 Dueño' : globalCurrentUser.name.split(' ')[0]}
                   </Text>
                 </TouchableOpacity>
 
