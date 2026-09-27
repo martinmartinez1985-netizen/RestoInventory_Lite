@@ -5,16 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 const { width } = Dimensions.get('window');
 const columns = width > 1000 ? 4 : width > 600 ? 3 : 1;
 
-const INITIAL_CLIENTS = [
-  { id: '1', name: 'DANIEL VILLASMIL', docId: 'V-58748394', email: 'Sin correo', phone: '04146183019', address: 'SECTOR PANAMERICANO' },
-  { id: '2', name: 'AMRO FAUZET HOMMAID', docId: 'E-84613570', email: 'Sin correo', phone: 'Sin teléfono', address: 'VALENCIA' },
-  { id: '3', name: 'KARLA UBAN FARAYA', docId: 'V-25346463', email: 'Sin correo', phone: '04247164917', address: 'VENTUS 1 LA LAGO' },
-  { id: '4', name: 'MARIA TORRES', docId: 'V-24250591', email: 'Sin correo', phone: '0412-4216565', address: 'Valle Claro edif belen pb' },
-  { id: '5', name: 'GERARDO PEÑA', docId: 'V-18202500', email: 'Sin correo', phone: '04127575860', address: 'BRR INTEGRACION COMUNAL' },
-  { id: '6', name: 'JAGI CAPS (JORGE COLINA)', docId: 'J-315300333', email: 'Sin correo', phone: 'Sin teléfono', address: 'CALLE 100 CC PLAZA LAGO NIVEL PB LOC...' },
-  { id: '7', name: 'KEILY HERNANDEZ', docId: 'V-16069335', email: 'HERNANDEZKEILYO@GMAIL.COM', phone: '04126577721', address: 'AV 12 CASA 90-75 BELLOSO' },
-  { id: '8', name: 'KARIBEL URDANETA', docId: 'V-18370662', email: 'Sin correo', phone: 'Sin teléfono', address: 'Sin dirección' },
-];
+const INITIAL_CLIENTS = [];
 
 const TABS = ['Todos', 'Clientes', 'Proveedores', 'Intercompañías', 'Accionistas', 'Empleados / Colaboradores'];
 

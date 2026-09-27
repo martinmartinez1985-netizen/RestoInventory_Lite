@@ -1,23 +1,6 @@
 import { Platform } from 'react-native';
 import { supabase } from '../config/supabase';
-export const globalDirectory = [
-  // Clientes
-  { id: '1', name: 'DANIEL VILLASMIL', docId: 'V-58748394', email: 'Sin correo', phone: '04146183019', address: 'SECTOR PANAMERICANO', type: 'Clientes' },
-  { id: '2', name: 'AMRO FAUZET HOMMAID', docId: 'E-84613570', email: 'Sin correo', phone: 'Sin teléfono', address: 'VALENCIA', type: 'Clientes' },
-  
-  // Proveedores
-  { id: '3', name: 'DISTRIBUIDORA DE LICORES S.A.', docId: 'J-123456789', email: 'ventas@licores.com', phone: '0212-5551234', address: 'ZONA INDUSTRIAL 1', type: 'Proveedores' },
-  { id: '4', name: 'CARNES PREMIUM EL RANCHO', docId: 'J-987654321', email: 'pedidos@elrancho.com', phone: '0414-9998877', address: 'MERCADO MAYORISTA', type: 'Proveedores' },
-  
-  // Intercompañías
-  { id: '5', name: 'INVERSIONES ABC C.A.', docId: 'J-111222333', email: 'finanzas@invabc.com', phone: '0212-3334455', address: 'TORRE EMPRESARIAL', type: 'Intercompañías' },
-  
-  // Accionistas
-  { id: '6', name: 'CARLOS MAYOR', docId: 'V-25481632', email: 'Sin correo', phone: '0412-1126593', address: 'Sin dirección', type: 'Accionistas' },
-  
-  // Empleados
-  { id: '7', name: 'MARIA GARCIA (MESERA)', docId: 'V-19887766', email: 'maria.g@restosys.com', phone: '0414-5556677', address: 'AV 5 DE JULIO', type: 'Empleados / Colaboradores' },
-];
+export const globalDirectory = [];
 
 export const addContactToGlobal = (contact) => {
   globalDirectory.unshift(contact);
@@ -32,49 +15,37 @@ export const updateContactInGlobal = (contact) => {
   }
 };
 
-export const globalReceivables = [
-  { id: 'REC-101', clientId: '1', clientName: 'DANIEL VILLASMIL', date: '2026-08-20', concept: 'Factura inicial', debit: 45.00, credit: 0 },
-  { id: 'PAY-101', clientId: '1', clientName: 'DANIEL VILLASMIL', date: '2026-08-21', concept: 'Abono Zelle', debit: 0, credit: 20.00 },
-  { id: 'REC-102', clientId: '5', clientName: 'INVERSIONES ABC C.A.', date: '2026-08-21', concept: 'Factura servicios', debit: 120.50, credit: 0 }
-];
+export const globalReceivables = [];
 
 export const addReceivable = (transaction) => {
   globalReceivables.push(transaction); 
+  persistData();
 };
 
 export const updateReceivable = (updatedTrx) => {
   const index = globalReceivables.findIndex(t => t.id === updatedTrx.id);
   if (index !== -1) {
     globalReceivables[index] = updatedTrx;
+    persistData();
   }
 };
 
-export const globalPayables = [
-  { id: 'CXC-201', clientId: '3', clientName: 'DISTRIBUIDORA DE LICORES S.A.', date: '2026-08-15', concept: 'Factura de licores #8892', debit: 0, credit: 350.00 },
-  { id: 'PAY-201', clientId: '3', clientName: 'DISTRIBUIDORA DE LICORES S.A.', date: '2026-08-18', concept: 'Abono Transferencia Banesco', debit: 150.00, credit: 0 },
-];
+export const globalPayables = [];
 
 export const addPayable = (transaction) => {
   globalPayables.push(transaction); 
+  persistData();
 };
 
 export const updatePayable = (updatedTrx) => {
   const index = globalPayables.findIndex(t => t.id === updatedTrx.id);
   if (index !== -1) {
     globalPayables[index] = updatedTrx;
+    persistData();
   }
 };
 
-export const globalBanks = [
-  { id: '1', name: 'BANCO DE VENEZUELA', code: '0102', usd: 0.00, bs: 0.00, type: 'Corriente Bs', isOverdraft: false },
-  { id: '2', name: 'CAJA IVA', code: '0155', usd: 536.00, bs: null, type: 'Corriente USD', isOverdraft: false },
-  { id: '3', name: 'CAJA PRINCIPAL', code: '0134', usd: 1796.75, bs: null, type: 'Corriente USD', isOverdraft: false },
-  { id: '4', name: 'BANESCO', code: '0134', usd: -91.88, bs: -10197.81, type: 'Corriente Bs (Sobregiro)', isOverdraft: true },
-  { id: '5', name: 'BANESCO PANAMA', code: '0134', usd: 156.72, bs: null, type: 'Corriente USD', isOverdraft: false },
-  { id: '6', name: 'GASTO REEMBOLSABLE', code: '', usd: 0.00, bs: null, type: 'Corriente USD', isOverdraft: false },
-  { id: '7', name: 'BANCO BINANCE', code: '0431', usd: 52.39, bs: null, type: 'Corriente USD', isOverdraft: false },
-  { id: '8', name: 'CAJA CHICA', code: '0134', usd: 5.00, bs: null, type: 'Corriente USD', isOverdraft: false },
-];
+export const globalBanks = [];
 
 export const updateBankBalance = (bankId, amountUSD, amountBS) => {
   const bank = globalBanks.find(b => b.id === bankId);
@@ -90,91 +61,17 @@ export const updateBankBalance = (bankId, amountUSD, amountBS) => {
     } else if (!bank.isOverdraft && bank.type.includes('Sobregiro')) {
       bank.type = bank.type.replace(' (Sobregiro)', '');
     }
+    persistData();
   }
 };
 
 
 // --- RECIPES & 3-TIER INVENTORY MODULE ---
 
-export const globalRawMaterials = [
-  { id: 'RAW-001', name: 'Pollo Pechuga', baseType: 'weight', baseStock: 15000, baseCost: 0.005, minStock: 5000 },
-  { id: 'RAW-002', name: 'Salsa Soya', baseType: 'volume', baseStock: 10000, baseCost: 0.003, minStock: 2000 },
-  { id: 'RAW-003', name: 'Arroz Blanco', baseType: 'weight', baseStock: 50000, baseCost: 0.001, minStock: 10000 },
-  { id: 'RAW-004', name: 'Cebollín', baseType: 'weight', baseStock: 2000, baseCost: 0.002, minStock: 500 },
-];
-
-export const globalWip = [
-  { id: 'WIP-001', name: 'Salsa Agridulce Base', baseType: 'volume', baseStock: 0, baseCost: 0, minStock: 1000 }
-];
-
-export const globalFinishedGoods = [
-  { id: 'FG-001', name: 'Pollo Agridulce Especial', baseType: 'unit', baseStock: 0, baseCost: 0, minStock: 10 }
-,
-  { id: 'FG-002', name: 'Original Burger', baseType: 'unit', baseStock: 0, baseCost: 0, minStock: 10 },
-  { id: 'FG-003', name: 'Double Cheese Burger', baseType: 'unit', baseStock: 0, baseCost: 0, minStock: 10 },
-  { id: 'FG-004', name: 'Spicy Burger', baseType: 'unit', baseStock: 0, baseCost: 0, minStock: 10 },
-  { id: 'FG-005', name: 'Noodles Teriyaki', baseType: 'unit', baseStock: 0, baseCost: 0, minStock: 10 },
-  { id: 'FG-006', name: 'Ramen Especial', baseType: 'unit', baseStock: 0, baseCost: 0, minStock: 10 },
-  { id: 'FG-007', name: 'Coca Cola Zero', baseType: 'unit', baseStock: 0, baseCost: 0, minStock: 10 },
-  { id: 'FG-008', name: 'Limonada', baseType: 'unit', baseStock: 0, baseCost: 0, minStock: 10 }
-];
-export const globalRecipes = [
-  { 
-    id: 'REC-001', 
-    name: 'Producir Salsa Agridulce', 
-    category: 'Preparaciones',
-    outputType: 'wip',
-    outputId: 'WIP-001',
-    yieldAmount: 1000,
-    yieldUnit: 'ml',
-    ingredients: [
-      { id: 'RAW-002', amount: 200 },
-      { id: 'RAW-004', amount: 50 }
-    ]
-  },
-  { 
-    id: 'REC-002', 
-    name: 'Plato Pollo Agridulce', 
-    category: 'Platos Principales',
-    outputType: 'finished',
-    outputId: 'FG-001',
-    yieldAmount: 1,
-    yieldUnit: 'unit',
-    ingredients: [
-      { id: 'RAW-001', amount: 250 },
-      { id: 'WIP-001', amount: 100 }
-    ]
-  }
-,
-  { 
-    id: 'REC-003', name: 'Original Burger', category: 'Burger', outputType: 'finished', outputId: 'FG-002', yieldAmount: 1, yieldUnit: 'unit',
-    ingredients: [{ id: 'RAW-001', amount: 150 }]
-  },
-  { 
-    id: 'REC-004', name: 'Double Cheese Burger', category: 'Burger', outputType: 'finished', outputId: 'FG-003', yieldAmount: 1, yieldUnit: 'unit',
-    ingredients: [{ id: 'RAW-001', amount: 300 }]
-  },
-  { 
-    id: 'REC-005', name: 'Spicy Burger', category: 'Burger', outputType: 'finished', outputId: 'FG-004', yieldAmount: 1, yieldUnit: 'unit',
-    ingredients: [{ id: 'RAW-001', amount: 150 }]
-  },
-  { 
-    id: 'REC-006', name: 'Noodles Teriyaki', category: 'Noodles', outputType: 'finished', outputId: 'FG-005', yieldAmount: 1, yieldUnit: 'unit',
-    ingredients: [{ id: 'RAW-002', amount: 50 }]
-  },
-  { 
-    id: 'REC-007', name: 'Ramen Especial', category: 'Noodles', outputType: 'finished', outputId: 'FG-006', yieldAmount: 1, yieldUnit: 'unit',
-    ingredients: [{ id: 'RAW-002', amount: 100 }, { id: 'RAW-004', amount: 20 }]
-  },
-  { 
-    id: 'REC-008', name: 'Coca Cola Zero', category: 'Drinks', outputType: 'finished', outputId: 'FG-007', yieldAmount: 1, yieldUnit: 'unit',
-    ingredients: []
-  },
-  { 
-    id: 'REC-009', name: 'Limonada', category: 'Drinks', outputType: 'finished', outputId: 'FG-008', yieldAmount: 1, yieldUnit: 'unit',
-    ingredients: []
-  }
-];
+export const globalRawMaterials = [];
+export const globalWip = [];
+export const globalFinishedGoods = [];
+export const globalRecipes = [];
 export const globalPurchases = [];
 export const globalWaste = [];
 
@@ -242,7 +139,7 @@ export const processProductionBatch = (recipeId, multiplier = 1) => {
 
 export const globalShift = {
   isOpen: true,
-  openingCash: 100.00,
+  openingCash: 0.00,
   startTime: new Date().toISOString(),
   sales: {
     usdCash: 0,
@@ -650,6 +547,31 @@ export const persistData = () => {
 export const loadData = () => {
   if (Platform.OS === 'web') {
     try {
+      const CLEAN_KEY = 'RESTO_CLEAN_SLATE_2026_ZERO_V1';
+      if (typeof localStorage !== 'undefined' && !localStorage.getItem(CLEAN_KEY)) {
+        localStorage.setItem(CLEAN_KEY, 'true');
+        globalDirectory.length = 0;
+        globalReceivables.length = 0;
+        globalPayables.length = 0;
+        globalBanks.length = 0;
+        globalRawMaterials.length = 0;
+        globalWip.length = 0;
+        globalFinishedGoods.length = 0;
+        globalRecipes.length = 0;
+        globalPurchases.length = 0;
+        globalWaste.length = 0;
+        globalActiveOrders.length = 0;
+        globalOrderHistory.length = 0;
+        globalZReports.length = 0;
+        globalTables.forEach(t => { t.status = 'free'; });
+        globalShift.isOpen = false;
+        globalShift.openingCash = 0;
+        globalShift.sales = { usdCash: 0, usdDigital: 0, bsCash: 0, bsDigital: 0, cxc: 0 };
+        persistData();
+        console.log("Sistema puesto en 0 exitosamente para inicio limpio");
+        return;
+      }
+
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -795,111 +717,13 @@ export const recordCompletedOrder = (order, paymentInfo = {}) => {
   return completedOrder;
 };
 
-// Seed de muestra si el historial está vacío para auditoría y rango de fechas
-export const seedSampleSalesIfEmpty = () => {
-  if (globalOrderHistory.length > 0) return;
-
-  const now = new Date();
-  const todayStr = now.toISOString();
-  
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString();
-
-  const twoDaysAgo = new Date(now);
-  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-  const twoDaysAgoStr = twoDaysAgo.toISOString();
-
-  const sampleSales = [
-    {
-      id: 'ORD-971101',
-      type: 'dine_in',
-      tableId: 'T1',
-      customerName: 'CARLOS MENDOZA',
-      clientId: 'V-19823456',
-      status: 'paid',
-      total: 35.98,
-      createdAt: todayStr,
-      items: [
-        { recipeId: 'REC-002', name: 'Plato Pollo Agridulce', qty: 2, price: 15.99, sentToKitchen: true },
-        { recipeId: 'REC-009', name: 'Limonada', qty: 2, price: 2.00, sentToKitchen: true }
-      ],
-      payment: { method: 'Zelle', currency: 'USD', amount: 35.98, exchangeRate: 40.00, paidAt: todayStr }
-    },
-    {
-      id: 'ORD-971102',
-      type: 'dine_in',
-      tableId: 'T3',
-      customerName: 'MARIA FERNANDA ROJAS',
-      clientId: 'V-24551982',
-      status: 'paid',
-      total: 19.99,
-      createdAt: todayStr,
-      items: [
-        { recipeId: 'REC-004', name: 'Double Cheese Burger', qty: 1, price: 17.99, sentToKitchen: true },
-        { recipeId: 'REC-008', name: 'Coca Cola Zero', qty: 1, price: 2.00, sentToKitchen: true }
-      ],
-      payment: { method: 'Pago Movil', currency: 'VES', amount: 799.60, exchangeRate: 40.00, paidAt: todayStr }
-    },
-    {
-      id: 'ORD-971103',
-      type: 'delivery',
-      tableId: null,
-      customerName: 'ALEJANDRO GUERRA',
-      clientId: 'V-18774211',
-      status: 'paid',
-      total: 42.50,
-      createdAt: todayStr,
-      items: [
-        { recipeId: 'REC-007', name: 'Ramen Especial', qty: 2, price: 18.25, sentToKitchen: true },
-        { recipeId: 'REC-009', name: 'Limonada', qty: 3, price: 2.00, sentToKitchen: true }
-      ],
-      payment: { method: 'Efectivo', currency: 'USD', amount: 42.50, exchangeRate: 40.00, paidAt: todayStr }
-    },
-    {
-      id: 'ORD-971104',
-      type: 'pickup',
-      tableId: null,
-      customerName: 'JUAN VALDEZ',
-      clientId: 'V-14223109',
-      status: 'paid',
-      total: 28.00,
-      createdAt: yesterdayStr,
-      items: [
-        { recipeId: 'REC-006', name: 'Noodles Teriyaki', qty: 2, price: 12.50, sentToKitchen: true },
-        { recipeId: 'REC-008', name: 'Coca Cola Zero', qty: 1, price: 3.00, sentToKitchen: true }
-      ],
-      payment: { method: 'POS', currency: 'VES', amount: 1120.00, exchangeRate: 40.00, paidAt: yesterdayStr }
-    },
-    {
-      id: 'ORD-971105',
-      type: 'dine_in',
-      tableId: 'T5',
-      customerName: 'DANIEL VILLASMIL',
-      clientId: 'V-58748394',
-      status: 'paid',
-      total: 54.00,
-      createdAt: twoDaysAgoStr,
-      items: [
-        { recipeId: 'REC-003', name: 'Original Burger', qty: 3, price: 16.00, sentToKitchen: true },
-        { recipeId: 'REC-009', name: 'Limonada', qty: 3, price: 2.00, sentToKitchen: true }
-      ],
-      payment: { method: 'CxC', currency: 'CxC', amount: 54.00, exchangeRate: 40.00, paidAt: twoDaysAgoStr }
-    }
-  ];
-
-  globalOrderHistory.push(...sampleSales);
-};
-
-seedSampleSalesIfEmpty();
-
 export const executeMasterWipe = (type, inputPin) => {
   if (inputPin !== globalMasterConfig.masterPin) {
     throw new Error("Clave Maestra incorrecta. Acceso denegado.");
   }
 
   if (type === 'sales') {
-    // Reiniciar ventas, órdenes activas, turnos y arqueos
+    // Reiniciar ventas, órdenes activas, turnos y arqueos a 0
     globalActiveOrders.length = 0;
     globalOrderHistory.length = 0;
     globalZReports.length = 0;
@@ -909,19 +733,38 @@ export const executeMasterWipe = (type, inputPin) => {
     globalShift.sales = { usdCash: 0, usdDigital: 0, bsCash: 0, bsDigital: 0, cxc: 0 };
     globalShift.expectedCash = 0;
     persistData();
-    return { success: true, message: "Ventas, comandas y arqueos de caja reiniciados con éxito." };
+    return { success: true, message: "Ventas, comandas y arqueos de caja reiniciados con éxito a cero (0)." };
   }
 
   if (type === 'factory') {
-    // Borrado total de fábrica
-    if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
-      localStorage.removeItem(STORAGE_KEY);
-      setTimeout(() => {
-        if (typeof window !== 'undefined') window.location.reload();
-      }, 500);
-    }
-    return { success: true, message: "Sistema reiniciado a valores de fábrica." };
+    // Borrado total a 0 de todo el sistema (listo para producción real)
+    globalDirectory.length = 0;
+    globalReceivables.length = 0;
+    globalPayables.length = 0;
+    globalBanks.length = 0;
+    globalRawMaterials.length = 0;
+    globalWip.length = 0;
+    globalFinishedGoods.length = 0;
+    globalRecipes.length = 0;
+    globalPurchases.length = 0;
+    globalWaste.length = 0;
+    globalActiveOrders.length = 0;
+    globalOrderHistory.length = 0;
+    globalZReports.length = 0;
+    globalTables.forEach(t => { t.status = 'free'; });
+    globalShift.isOpen = false;
+    globalShift.openingCash = 0;
+    globalShift.sales = { usdCash: 0, usdDigital: 0, bsCash: 0, bsDigital: 0, cxc: 0 };
+    globalShift.expectedCash = 0;
+    persistData();
+    setTimeout(() => {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.location.reload();
+      }
+    }, 500);
+    return { success: true, message: "Sistema reseteado a CERO en todos los módulos (listo para cargar datos reales)." };
   }
 
   throw new Error("Tipo de borrado no reconocido.");
 };
+
