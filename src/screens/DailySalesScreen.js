@@ -9,13 +9,11 @@ import {
   TextInput, 
   Platform,
   Image,
-  Dimensions
+  useWindowDimensions
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalOrderHistory, globalSettings } from '../store/mockDb';
 import TicketModal from '../components/TicketModal';
-
-const { width } = Dimensions.get('window');
 
 const COLORS = {
   bg: '#f8fafc',
@@ -45,6 +43,8 @@ const toISODateOnly = (d) => {
 };
 
 export default function DailySalesScreen({ navigation }) {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
   const [selectedAuditOrder, setSelectedAuditOrder] = useState(null);
   const [isAuditModalVisible, setIsAuditModalVisible] = useState(false);
   const today = toISODateOnly(new Date());
@@ -265,43 +265,56 @@ export default function DailySalesScreen({ navigation }) {
       <View style={styles.container}>
         
         {/* Header Superior */}
-        <View style={styles.topHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={[styles.topHeader, isMobile && { flexDirection: 'column', alignItems: 'flex-start', gap: 10, paddingHorizontal: 15, paddingVertical: 10 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: isMobile ? '100%' : 'auto' }}>
             <TouchableOpacity 
               onPress={() => navigation.navigate('Dashboard')} 
               style={styles.logoBtn}
             >
               <Image 
                 source={require('../../assets/logo.png')} 
-                style={{ width: 130, height: 40, resizeMode: 'contain' }} 
+                style={{ width: isMobile ? 100 : 130, height: isMobile ? 32 : 40, resizeMode: 'contain' }} 
               />
             </TouchableOpacity>
-            <View style={{ marginLeft: 20 }}>
-              <Text style={styles.moduleTitle}>Ventas Diarias y Facturación</Text>
-              <Text style={styles.moduleSubtitle}>Cálculo exacto en Bolívares a la tasa histórica de cada cobro</Text>
-            </View>
+            {isMobile && (
+              <TouchableOpacity 
+                style={[styles.dashboardBtn, { paddingHorizontal: 10, paddingVertical: 6 }]} 
+                onPress={() => navigation.navigate('Dashboard')}
+              >
+                <MaterialCommunityIcons name="home-outline" size={16} color="#64748b" style={{ marginRight: 4 }} />
+                <Text style={[styles.dashboardBtnText, { fontSize: 12 }]}>Inicio</Text>
+              </TouchableOpacity>
+            )}
+            {!isMobile && (
+              <View style={{ marginLeft: 20 }}>
+                <Text style={styles.moduleTitle}>Ventas Diarias y Facturación</Text>
+                <Text style={styles.moduleSubtitle}>Cálculo exacto en Bolívares a la tasa histórica de cada cobro</Text>
+              </View>
+            )}
           </View>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
             <TouchableOpacity 
-              style={styles.printSummaryBtn} 
+              style={[styles.printSummaryBtn, isMobile && { flex: 1, justifyContent: 'center' }]} 
               onPress={handlePrintSummary}
             >
               <MaterialCommunityIcons name="printer" size={18} color="#ffffff" style={{ marginRight: 6 }} />
               <Text style={styles.printSummaryText}>Imprimir Reporte</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.dashboardBtn} 
-              onPress={() => navigation.navigate('Dashboard')}
-            >
-              <MaterialCommunityIcons name="home-outline" size={18} color="#64748b" style={{ marginRight: 6 }} />
-              <Text style={styles.dashboardBtnText}>Inicio</Text>
-            </TouchableOpacity>
+            {!isMobile && (
+              <TouchableOpacity 
+                style={styles.dashboardBtn} 
+                onPress={() => navigation.navigate('Dashboard')}
+              >
+                <MaterialCommunityIcons name="home-outline" size={18} color="#64748b" style={{ marginRight: 6 }} />
+                <Text style={styles.dashboardBtnText}>Inicio</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
-        <ScrollView style={styles.mainScroll} contentContainerStyle={{ padding: 25 }}>
+        <ScrollView style={styles.mainScroll} contentContainerStyle={{ padding: isMobile ? 12 : 25 }}>
           
           {/* Barra de Filtro de Rango de Fechas */}
           <View style={styles.filterCard}>
@@ -434,8 +447,13 @@ export default function DailySalesScreen({ navigation }) {
 
           </View>
 
-          {/* Navegación de Pestañas de Vista */}
-          <View style={styles.tabsHeader}>
+          {/* Navegación de Pestañas de Vista con Scroll Horizontal */}
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={{ marginBottom: 20, flexGrow: 0 }}
+            contentContainerStyle={styles.tabsHeader}
+          >
             <TouchableOpacity 
               style={[styles.tabBtn, activeTab === 'orders' && styles.tabBtnActive]}
               onPress={() => setActiveTab('orders')}
@@ -447,7 +465,7 @@ export default function DailySalesScreen({ navigation }) {
                 style={{ marginRight: 6 }} 
               />
               <Text style={[styles.tabBtnText, activeTab === 'orders' && styles.tabBtnTextActive]}>
-                Auditoría de Facturas ({filteredOrders.length})
+                Auditoría ({filteredOrders.length})
               </Text>
             </TouchableOpacity>
 
@@ -462,7 +480,7 @@ export default function DailySalesScreen({ navigation }) {
                 style={{ marginRight: 6 }} 
               />
               <Text style={[styles.tabBtnText, activeTab === 'dishes' && styles.tabBtnTextActive]}>
-                Platos Más Vendidos ({stats.topDishes.length})
+                Platos Vendidos ({stats.topDishes.length})
               </Text>
             </TouchableOpacity>
 
@@ -480,7 +498,7 @@ export default function DailySalesScreen({ navigation }) {
                 Formas de Pago
               </Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
 
           {/* CONTENIDO TAB 1: LISTADO DE FACTURAS */}
           {activeTab === 'orders' && (

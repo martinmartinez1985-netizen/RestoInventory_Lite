@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalActiveOrders, syncFromCloud, pushOrderToCloud } from '../store/mockDb';
 import TicketModal from '../components/TicketModal';
@@ -64,6 +64,8 @@ class KitchenErrorBoundary extends React.Component {
 }
 
 function KitchenScreenContent({ navigation }) {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 600;
   const [selectedKitchenOrder, setSelectedKitchenOrder] = useState(null);
   const [isKitchenModalVisible, setIsKitchenModalVisible] = useState(false);
   const [tick, setTick] = useState(0);
@@ -130,7 +132,7 @@ function KitchenScreenContent({ navigation }) {
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Navbar Oscuro para la Cocina */}
-      <View style={styles.header}>
+      <View style={[styles.header, isMobile && { padding: 12 }]}>
         <TouchableOpacity 
           onPress={() => {
             if (navigation && navigation.navigate) navigation.navigate('Dashboard');
@@ -138,14 +140,14 @@ function KitchenScreenContent({ navigation }) {
           }} 
           style={styles.backBtn}
         >
-          <MaterialCommunityIcons name="arrow-left" size={20} color="#fff" />
+          <MaterialCommunityIcons name="arrow-left" size={18} color="#fff" />
           <Text style={styles.backBtnText}>Volver</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Pantalla de Cocina (KDS)</Text>
+        <Text style={[styles.headerTitle, isMobile && { fontSize: 16 }]}>{isMobile ? 'Cocina (KDS)' : 'Pantalla de Cocina (KDS)'}</Text>
         <View style={styles.pulseDot} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={[styles.container, isMobile && { padding: 12 }]}>
         {pendingOrders.length === 0 ? (
           <View style={styles.emptyState}>
             <MaterialCommunityIcons name="silverware-clean" size={60} color="#334155" />
@@ -153,7 +155,7 @@ function KitchenScreenContent({ navigation }) {
             <Text style={styles.emptySub}>La cocina está libre y lista para recibir pedidos</Text>
           </View>
         ) : (
-          <View style={styles.grid}>
+          <View style={[styles.grid, isMobile && { gap: 12 }]}>
             {pendingOrders.map((order, i) => {
               let items = order.items;
               if (typeof items === 'string') {
@@ -163,7 +165,7 @@ function KitchenScreenContent({ navigation }) {
               const pendingItems = validItems.filter(item => item && item.sentToKitchen && !item.kitchenReady);
 
               return (
-                <View key={order.id || i} style={styles.ticketCard}>
+                <View key={order.id || i} style={[styles.ticketCard, isMobile && { width: '100%' }]}>
                   <View style={[styles.ticketHeader, order.type === 'delivery' ? { backgroundColor: '#ef4444' } : (order.type === 'dine_in' ? { backgroundColor: '#10b981' } : { backgroundColor: '#f59e0b' })]}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Text style={styles.ticketTitle}>

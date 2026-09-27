@@ -11,6 +11,7 @@ import {
   Image,
   Modal,
   Dimensions,
+  useWindowDimensions,
   Alert
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -83,6 +84,8 @@ const ROLE_INFO = {
 };
 
 export default function SettingsScreen({ navigation }) {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
   const [, setTick] = useState(0);
   const refresh = () => setTick(t => t + 1);
 
@@ -323,33 +326,46 @@ export default function SettingsScreen({ navigation }) {
       <View style={styles.container}>
         
         {/* Header Superior */}
-        <View style={styles.topHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={[styles.topHeader, isMobile && { flexDirection: 'column', alignItems: 'flex-start', gap: 10, paddingHorizontal: 15, paddingVertical: 10 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: isMobile ? '100%' : 'auto' }}>
             <TouchableOpacity 
               onPress={() => navigation.navigate('Dashboard')} 
               style={styles.logoBtn}
             >
               <Image 
                 source={require('../../assets/logo.png')} 
-                style={{ width: 130, height: 40, resizeMode: 'contain' }} 
+                style={{ width: isMobile ? 100 : 130, height: isMobile ? 32 : 40, resizeMode: 'contain' }} 
               />
             </TouchableOpacity>
-            <View style={{ marginLeft: 20 }}>
-              <Text style={styles.moduleTitle}>Configuración del Sistema</Text>
-              <Text style={styles.moduleSubtitle}>Gestión de usuarios, control de roles y mantenimiento maestro</Text>
-            </View>
+            {isMobile && (
+              <TouchableOpacity 
+                style={[styles.dashboardBtn, { paddingHorizontal: 10, paddingVertical: 6 }]} 
+                onPress={() => navigation.navigate('Dashboard')}
+              >
+                <MaterialCommunityIcons name="home-outline" size={16} color="#64748b" style={{ marginRight: 4 }} />
+                <Text style={[styles.dashboardBtnText, { fontSize: 12 }]}>Inicio</Text>
+              </TouchableOpacity>
+            )}
+            {!isMobile && (
+              <View style={{ marginLeft: 20 }}>
+                <Text style={styles.moduleTitle}>Configuración del Sistema</Text>
+                <Text style={styles.moduleSubtitle}>Gestión de usuarios, control de roles y mantenimiento maestro</Text>
+              </View>
+            )}
           </View>
 
-          <TouchableOpacity 
-            style={styles.dashboardBtn} 
-            onPress={() => navigation.navigate('Dashboard')}
-          >
-            <MaterialCommunityIcons name="home-outline" size={18} color="#64748b" style={{ marginRight: 6 }} />
-            <Text style={styles.dashboardBtnText}>Volver al Inicio</Text>
-          </TouchableOpacity>
+          {!isMobile && (
+            <TouchableOpacity 
+              style={styles.dashboardBtn} 
+              onPress={() => navigation.navigate('Dashboard')}
+            >
+              <MaterialCommunityIcons name="home-outline" size={18} color="#64748b" style={{ marginRight: 6 }} />
+              <Text style={styles.dashboardBtnText}>Volver al Inicio</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        <ScrollView style={styles.mainScroll} contentContainerStyle={{ padding: 25 }}>
+        <ScrollView style={styles.mainScroll} contentContainerStyle={{ padding: isMobile ? 12 : 25 }}>
           
           {/* Banner de Sesión Activa */}
           <View style={[styles.activeUserBanner, { borderLeftColor: currentRoleConfig.color }]}>
@@ -372,8 +388,13 @@ export default function SettingsScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Navegación de Pestañas */}
-          <View style={styles.tabsHeader}>
+          {/* Navegación de Pestañas con Scroll Horizontal */}
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={{ marginBottom: 20, flexGrow: 0 }}
+            contentContainerStyle={styles.tabsHeader}
+          >
             <TouchableOpacity 
               style={[styles.tabBtn, activeTab === 'users' && styles.tabBtnActive]}
               onPress={() => setActiveTab('users')}
@@ -385,11 +406,11 @@ export default function SettingsScreen({ navigation }) {
                 style={{ marginRight: 6 }} 
               />
               <Text style={[styles.tabBtnText, activeTab === 'users' && styles.tabBtnTextActive]}>
-                Usuarios y Permisos ({globalUsers.length})
+                Usuarios ({globalUsers.length})
               </Text>
             </TouchableOpacity>
 
-                        <TouchableOpacity 
+            <TouchableOpacity 
               style={[styles.tabBtn, activeTab === 'supabase' && styles.tabBtnActive]}
               onPress={() => setActiveTab('supabase')}
             >
@@ -429,10 +450,10 @@ export default function SettingsScreen({ navigation }) {
                 style={{ marginRight: 6 }} 
               />
               <Text style={[styles.tabBtnText, activeTab === 'danger' && { color: COLORS.danger, fontWeight: '800' }]}>
-                Borrado General (Peligro)
+                Borrado (Peligro)
               </Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
 
           {/* TAB 1: USUARIOS Y PERMISOS */}
           {activeTab === 'users' && (

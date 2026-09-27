@@ -1,12 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, SafeAreaView, Platform, Image, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, useWindowDimensions, SafeAreaView, Platform, Image } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalSettings, globalCurrentUser, getUserPermissions } from '../store/mockDb';
-
-const { width } = Dimensions.get('window');
-const columns = width > 800 ? 5 : 3;
 
 const MODULES = [
   { id: '1', title: 'Contactos', icon: 'card-account-details-outline', colors: ['#00d49f', '#00b88a'], route: 'Contacts' },
@@ -24,6 +21,12 @@ const MODULES = [
 export default function DashboardScreen({ navigation }) {
   const isFocused = useIsFocused();
   const [tick, setTick] = React.useState(0);
+  const { width } = useWindowDimensions();
+
+  // Detección automática de dispositivo móvil / tablet / escritorio
+  const isMobile = width < 600;
+  const isTablet = width >= 600 && width < 950;
+  const columns = width > 950 ? 5 : width > 550 ? 3 : 2;
 
   React.useEffect(() => {
     if (isFocused) {
@@ -44,11 +47,11 @@ export default function DashboardScreen({ navigation }) {
   const currentRole = roleLabels[globalCurrentUser.role] || roleLabels.cashier;
 
   const renderItem = ({ item }) => (
-    <View style={styles.itemContainer}>
+    <View style={[styles.itemContainer, isMobile && { width: (width - 60) / columns }]}>
       <TouchableOpacity 
         style={[
           styles.touchable,
-          Platform.OS === 'web' && { boxShadow: `0px 15px 30px ${item.colors[0]}60` },
+          Platform.OS === 'web' && { boxShadow: `0px 12px 24px ${item.colors[0]}50` },
           Platform.OS !== 'web' && { shadowColor: item.colors[0] }
         ]} 
         activeOpacity={0.8}
@@ -56,26 +59,31 @@ export default function DashboardScreen({ navigation }) {
       >
         <LinearGradient
           colors={item.colors}
-          style={styles.iconBackground}
+          style={[styles.iconBackground, isMobile && { width: 72, height: 72, borderRadius: 20, marginBottom: 10 }]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <MaterialCommunityIcons name={item.icon} size={36} color="#fff" />
+          <MaterialCommunityIcons name={item.icon} size={isMobile ? 30 : 36} color="#fff" />
         </LinearGradient>
       </TouchableOpacity>
-      <Text style={styles.title}>{item.title}</Text>
+      <Text style={[styles.title, isMobile && { fontSize: 12 }]}>{item.title}</Text>
     </View>
   );
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <View style={[styles.container, isMobile && { paddingTop: 20 }]}>
         
         {/* Welcome Section */}
-        <View style={styles.welcomeSection}>
+        <View style={[styles.welcomeSection, isMobile && { marginBottom: 20 }]}>
           <Image 
             source={require('../../assets/logo.png')} 
-            style={{ height: 110, width: 330, resizeMode: 'contain', marginBottom: 14 }} 
+            style={{ 
+              height: isMobile ? 65 : 110, 
+              width: isMobile ? 210 : 330, 
+              resizeMode: 'contain', 
+              marginBottom: isMobile ? 8 : 14 
+            }} 
           />
           
           {/* Badge del Usuario Actual */}
@@ -85,14 +93,14 @@ export default function DashboardScreen({ navigation }) {
             backgroundColor: currentRole.bg,
             borderWidth: 1,
             borderColor: currentRole.color + '40',
-            paddingHorizontal: 16,
-            paddingVertical: 7,
+            paddingHorizontal: isMobile ? 12 : 16,
+            paddingVertical: isMobile ? 5 : 7,
             borderRadius: 25,
-            marginBottom: 10,
-            gap: 8
+            marginBottom: isMobile ? 6 : 10,
+            gap: 6
           }}>
-            <MaterialCommunityIcons name={currentRole.icon} size={18} color={currentRole.color} />
-            <Text style={{ fontSize: 13, color: '#334155', fontWeight: 'bold' }}>
+            <MaterialCommunityIcons name={currentRole.icon} size={isMobile ? 15 : 18} color={currentRole.color} />
+            <Text style={{ fontSize: isMobile ? 11 : 13, color: '#334155', fontWeight: 'bold' }}>
               Operador:{' '}
               <Text style={{ color: currentRole.color, fontWeight: '900' }}>
                 {globalCurrentUser.name}
@@ -101,23 +109,25 @@ export default function DashboardScreen({ navigation }) {
             </Text>
           </View>
 
-          <Text style={styles.subtitleText}>
+          <Text style={[styles.subtitleText, isMobile && { fontSize: 12, paddingHorizontal: 15, textAlign: 'center' }]}>
             {filteredModules.length > 0
               ? `Acceso a ${filteredModules.length} de ${MODULES.length} módulos habilitados para tu usuario.`
               : 'No tienes módulos asignados. Contacta al Administrador.'}
           </Text>
         </View>
 
-        {/* Grid Section */}
+        {/* Grid Section - Scrollable and Mobile-Optimized */}
         {filteredModules.length > 0 ? (
           <FlatList
+            key={`grid-cols-${columns}`}
             data={filteredModules}
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
             numColumns={columns}
-            contentContainerStyle={styles.listContainer}
-            columnWrapperStyle={styles.columnWrapper}
-            scrollEnabled={false}
+            contentContainerStyle={[styles.listContainer, { paddingBottom: isMobile ? 80 : 50 }]}
+            columnWrapperStyle={[styles.columnWrapper, isMobile && { gap: 16, marginBottom: 18 }]}
+            scrollEnabled={true}
+            showsVerticalScrollIndicator={false}
           />
         ) : (
           <View style={{ alignItems: 'center', marginTop: 40, padding: 30, backgroundColor: '#fef2f2', borderRadius: 16, borderWidth: 1, borderColor: '#fca5a5' }}>
@@ -144,44 +154,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
     alignItems: 'center',
-    paddingTop: 60, // En lugar de centrar, dejamos un padding fijo arriba
+    paddingTop: 45,
   },
   welcomeSection: {
     alignItems: 'center',
-    marginBottom: 60,
-  },
-  logoBox: {
-    backgroundColor: '#1f2a3a',
-    width: 60,
-    height: 60,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-    ...Platform.select({
-      web: { boxShadow: '0px 10px 25px rgba(31, 42, 58, 0.4)' },
-      default: { shadowColor: '#1f2a3a', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 15, elevation: 8 }
-    })
-  },
-  logoBoxText: {
-    color: '#ffffff',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  welcomeText: {
-    fontSize: 16,
-    color: '#6c7a8f',
-    marginBottom: 4,
-  },
-  brandText: {
-    fontSize: 36,
-    fontWeight: '900',
-    color: '#1a1a24',
-    letterSpacing: -0.5,
-    marginBottom: 8,
+    marginBottom: 40,
   },
   subtitleText: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#8492a6',
   },
   listContainer: {
@@ -189,8 +169,8 @@ const styles = StyleSheet.create({
   },
   columnWrapper: {
     justifyContent: 'center',
-    marginBottom: 40,
-    gap: 50,
+    marginBottom: 35,
+    gap: 45,
   },
   itemContainer: {
     alignItems: 'center',
@@ -223,3 +203,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+

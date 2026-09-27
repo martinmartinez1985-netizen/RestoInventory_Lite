@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, Platform, ScrollView } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, Platform, ScrollView, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalShift, closeShift, registerShiftSale, openShift } from '../store/mockDb';
 
 export default function CashCloseScreen({ navigation }) {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
   const [actualCash, setActualCash] = useState('');
   const [hasClosed, setHasClosed] = useState(false);
   const [latestReport, setLatestReport] = useState(null);
@@ -71,23 +73,23 @@ export default function CashCloseScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={[styles.container, isMobile && { paddingHorizontal: 16, paddingTop: 16 }]}>
         
         {/* Header */}
-        <View style={styles.headerSection}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={{marginRight: 15}}>
+        <View style={[styles.headerSection, isMobile && { marginBottom: 16 }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{marginRight: 15, alignSelf: 'flex-start'}}>
             <View style={styles.backBtn}>
               <MaterialCommunityIcons name="arrow-left" size={16} color="#64748b" />
               <Text style={styles.backBtnText}>Volver</Text>
             </View>
           </TouchableOpacity>
-          <View style={{marginTop: 15}}>
-            <Text style={styles.pageTitle}>Cierre de Caja (Reporte Z)</Text>
-            <Text style={styles.pageSubtitle}>Cuadre físico de efectivo y resumen de métodos de pago</Text>
+          <View style={{marginTop: isMobile ? 8 : 15}}>
+            <Text style={[styles.pageTitle, isMobile && { fontSize: 20 }]}>Cierre de Caja (Reporte Z)</Text>
+            <Text style={[styles.pageSubtitle, isMobile && { fontSize: 12 }]}>Cuadre físico de efectivo y resumen de métodos de pago</Text>
           </View>
         </View>
 
-        <View style={styles.layout}>
+        <View style={[styles.layout, isMobile && { flexDirection: 'column', gap: 16 }]}>
           
           {/* Lado Izquierdo: Resumen del Sistema */}
           <View style={styles.sysCol}>

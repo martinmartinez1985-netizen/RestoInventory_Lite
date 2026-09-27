@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform, TextInput, Image, Dimensions, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform, TextInput, Image, useWindowDimensions, Modal } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import TicketModal from '../components/TicketModal';
 import { globalActiveOrders, globalRecipes, processProductionBatch, updateStock, registerShiftSale, globalTables, globalSettings, globalDirectory, addContactToGlobal, recordCompletedOrder, globalOrderHistory, pushOrderToCloud, persistData } from '../store/mockDb';
-
-const { width } = Dimensions.get('window');
 
 // Paleta de colores Dark Theme
 const COLORS = {
@@ -18,6 +16,9 @@ const COLORS = {
 };
 
 export default function PosOrderingScreen({ route, navigation }) {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 850;
+  const [mobilePosTab, setMobilePosTab] = useState('menu'); // 'menu' | 'ticket'
   const { orderId } = route.params;
   const [order, setOrder] = useState(null);
   const [, setTick] = useState(0);
@@ -372,10 +373,38 @@ export default function PosOrderingScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      {/* Barra superior de navegación exclusiva para móvil */}
+      {isMobile && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.sidebar, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}>
+            <MaterialCommunityIcons name="arrow-left" size={16} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginLeft: 4 }}>Mesas</Text>
+          </TouchableOpacity>
+
+          <View style={{ flexDirection: 'row', backgroundColor: COLORS.bg, borderRadius: 20, padding: 3, borderWidth: 1, borderColor: COLORS.border }}>
+            <TouchableOpacity 
+              style={[{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16 }, mobilePosTab === 'menu' && { backgroundColor: COLORS.primary }]}
+              onPress={() => setMobilePosTab('menu')}
+            >
+              <Text style={{ fontSize: 12, fontWeight: 'bold', color: mobilePosTab === 'menu' ? '#fff' : COLORS.textMuted }}>🍽️ Menú</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16 }, mobilePosTab === 'ticket' && { backgroundColor: COLORS.primary }]}
+              onPress={() => setMobilePosTab('ticket')}
+            >
+              <Text style={{ fontSize: 12, fontWeight: 'bold', color: mobilePosTab === 'ticket' ? '#fff' : COLORS.textMuted }}>
+                🧾 Cuenta ({order.items.reduce((s, i) => s + (i.qty || 1), 0)})
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      <View style={[styles.container, isMobile && { flexDirection: 'column' }]}>
         
-        {/* Lado Izquierdo: Sidebar Navegación */}
-        <View style={styles.sidebar}>
+        {/* Lado Izquierdo: Sidebar Navegación (solo desktop) */}
+        {!isMobile && (
+          <View style={styles.sidebar}>
             <View style={styles.logoBox}>
               <MaterialCommunityIcons name="storefront" size={28} color={COLORS.primary} />
             </View>
@@ -390,18 +419,20 @@ export default function PosOrderingScreen({ route, navigation }) {
               <Text style={[styles.navText, {color: COLORS.primary}]}>Menu</Text>
             </TouchableOpacity>
           </View>
+        )}
 
-          {/* Centro: Catalogo de Menu */}
-          <View style={styles.mainContent}>
+        {/* Centro: Catalogo de Menu */}
+        {(!isMobile || mobilePosTab === 'menu') && (
+          <View style={[styles.mainContent, isMobile && { padding: 12 }]}>
             {/* Header Superior */}
-            <View style={styles.header}>
+            <View style={[styles.header, isMobile && { marginBottom: 12 }]}>
               <View>
-                <Text style={styles.dateText}>{new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</Text>
+                <Text style={styles.dateText}>{new Date().toLocaleDateString('es-ES', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
               </View>
-              <View style={styles.searchBox}>
-                <MaterialCommunityIcons name="magnify" size={20} color={COLORS.textMuted} />
+              <View style={[styles.searchBox, isMobile && { width: 160, height: 38 }]}>
+                <MaterialCommunityIcons name="magnify" size={18} color={COLORS.textMuted} />
                 <TextInput 
-                  style={styles.searchInput} 
+                  style={[styles.searchInput, isMobile && { fontSize: 12 }]} 
                   placeholder="Buscar menu..." 
                   placeholderTextColor={COLORS.textMuted} 
                 />
@@ -413,32 +444,66 @@ export default function PosOrderingScreen({ route, navigation }) {
               {['Todos', 'Platos Principales', 'Burger', 'Noodles', 'Drinks', 'Arroz'].map(cat => (
                 <TouchableOpacity 
                   key={cat} 
-                  style={[styles.catBadge, activeCategory === cat && styles.catBadgeActive]}
+                  style={[styles.catBadge, isMobile && { paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 }, activeCategory === cat && styles.catBadgeActive]}
                   onPress={() => setActiveCategory(cat)}
                 >
-                  <Text style={[styles.catText, activeCategory === cat && {color: '#fff'}]}>{cat}</Text>
+                  <Text style={[styles.catText, isMobile && { fontSize: 12 }, activeCategory === cat && {color: '#fff'}]}>{cat}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
 
             {/* Grid de Productos */}
             <ScrollView style={styles.gridScroll}>
-              <View style={styles.grid}>
+              <View style={[styles.grid, isMobile && { gap: 10 }]}>
                 {globalRecipes.map((recipe, i) => (
-                  <TouchableOpacity key={i} style={styles.menuCard} onPress={() => addItem(recipe)}>
-                    <Image source={{uri: recipe.image || 'https://via.placeholder.com/150'}} style={styles.cardImage} />
-                    <View style={styles.cardInfo}>
-                      <Text style={styles.cardTitle} numberOfLines={1}>{recipe.name}</Text>
-                      <Text style={styles.cardPrice}>${formatMoney(recipe.salePrice || recipe.price || 15.99)}</Text>
+                  <TouchableOpacity 
+                    key={i} 
+                    style={[styles.menuCard, isMobile && { width: (width - 34) / 2 }]} 
+                    onPress={() => addItem(recipe)}
+                  >
+                    <Image source={{uri: recipe.image || 'https://via.placeholder.com/150'}} style={[styles.cardImage, isMobile && { height: 100 }]} />
+                    <View style={[styles.cardInfo, isMobile && { padding: 8 }]}>
+                      <Text style={[styles.cardTitle, isMobile && { fontSize: 12, marginBottom: 4 }]} numberOfLines={1}>{recipe.name}</Text>
+                      <Text style={[styles.cardPrice, isMobile && { fontSize: 14 }]}>${formatMoney(recipe.salePrice || recipe.price || 15.99)}</Text>
                     </View>
                   </TouchableOpacity>
                 ))}
               </View>
             </ScrollView>
-          </View>
 
-          {/* Lado Derecho: Ticket / Orden */}
-          <View style={styles.ticketPanel}>
+            {/* Botón flotante para ver cuenta en móvil */}
+            {isMobile && order.items.length > 0 && (
+              <TouchableOpacity 
+                style={{
+                  backgroundColor: '#10b981',
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  borderRadius: 12,
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: 8,
+                  marginBottom: 4,
+                }}
+                onPress={() => setMobilePosTab('ticket')}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <MaterialCommunityIcons name="receipt" size={18} color="#fff" />
+                  <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13 }}>
+                    Ver Cuenta ({order.items.reduce((s, i) => s + (i.qty || 1), 0)} ítems)
+                  </Text>
+                </View>
+                <Text style={{ color: '#fff', fontWeight: '900', fontSize: 15 }}>
+                  ${formatMoney(order.total)}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Lado Derecho: Ticket / Orden */}
+        {(!isMobile || mobilePosTab === 'ticket') && (
+          <View style={[styles.ticketPanel, isMobile && { width: '100%', flex: 1, borderLeftWidth: 0, padding: 14 }]}>
             <Text style={styles.ticketTitle}>
               {order.type === 'dine_in' ? `Orden - Mesa ${order.tableId.replace('T', '')}` : `Orden: ${order.type}`}
             </Text>
@@ -568,13 +633,14 @@ export default function PosOrderingScreen({ route, navigation }) {
           </View>
 
         </View>
+        )}
       </View>
     
       
         {/* Modal de Búsqueda y Creación de Clientes CRM */}
         {isClientModalVisible && (
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { width: 480, maxHeight: '90%' }]}>
+            <View style={[styles.modalContent, { width: isMobile ? '95%' : 480, maxHeight: '90%', padding: isMobile ? 16 : 30 }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <Text style={{ fontSize: 20, fontWeight: 'bold', color: COLORS.text }}>
                   {isCreatingClient ? 'Crear Nuevo Cliente' : 'Seleccionar Cliente'}
@@ -679,7 +745,7 @@ export default function PosOrderingScreen({ route, navigation }) {
         {/* Checkout Modal Dark Theme con Pagos Mixtos */}
       {checkoutVisible && (
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { width: 560, maxHeight: '92%' }]}>
+          <View style={[styles.modalContent, { width: isMobile ? '96%' : 560, maxHeight: '92%', padding: isMobile ? 16 : 30 }]}>
             <ScrollView showsVerticalScrollIndicator={false}>
               
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>

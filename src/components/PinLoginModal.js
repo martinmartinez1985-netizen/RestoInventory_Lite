@@ -6,7 +6,9 @@ import {
   TouchableOpacity, 
   Modal, 
   Image, 
-  Platform 
+  Platform,
+  ScrollView,
+  useWindowDimensions 
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalUsers, globalCurrentUser, setCurrentUser, globalMasterConfig } from '../store/mockDb';
@@ -19,6 +21,8 @@ const ROLE_COLORS = {
 };
 
 export default function PinLoginModal({ visible, onUnlock }) {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 600;
   const [selectedUser, setSelectedUser] = useState(null);
   const [pin, setPin] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -94,52 +98,63 @@ export default function PinLoginModal({ visible, onUnlock }) {
   return (
     <Modal visible={visible} transparent={false} animationType="fade">
       <View style={styles.container}>
-        
-        {/* Logo y Encabezado */}
-        <View style={styles.header}>
-          <Image 
-            source={require('../../assets/logo.png')} 
-            style={styles.logo} 
-          />
-          <Text style={styles.title}>LAGO WOK ZHEN</Text>
-          <Text style={styles.subtitle}>Selecciona tu usuario e ingresa tu PIN de acceso</Text>
-        </View>
+        <ScrollView 
+          contentContainerStyle={[
+            styles.scrollContent,
+            isMobile && { paddingVertical: 18 }
+          ]}
+          showsVerticalScrollIndicator={false}
+          style={{ width: '100%' }}
+        >
+          {/* Logo y Encabezado */}
+          <View style={[styles.header, isMobile && { marginBottom: 14 }]}>
+            <Image 
+              source={require('../../assets/logo.png')} 
+              style={[styles.logo, isMobile && { height: 50, width: 180, marginBottom: 4 }]} 
+            />
+            <Text style={[styles.title, isMobile && { fontSize: 20 }]}>LAGO WOK ZHEN</Text>
+            <Text style={[styles.subtitle, isMobile && { fontSize: 12 }]}>Selecciona tu usuario e ingresa tu PIN de acceso</Text>
+          </View>
 
-        {/* Tarjetas de Selección de Usuario */}
-        <View style={styles.usersRow}>
-          {globalUsers.map(user => {
-            const isSelected = selectedUser && selectedUser.id === user.id;
-            const roleInfo = ROLE_COLORS[user.role] || ROLE_COLORS.cashier;
+          {/* Tarjetas de Selección de Usuario */}
+          <View style={[styles.usersRow, isMobile && { gap: 8, marginBottom: 16 }]}>
+            {globalUsers.map(user => {
+              const isSelected = selectedUser && selectedUser.id === user.id;
+              const roleInfo = ROLE_COLORS[user.role] || ROLE_COLORS.cashier;
 
-            return (
-              <TouchableOpacity 
-                key={user.id} 
-                style={[styles.userCard, isSelected && styles.userCardSelected]}
-                onPress={() => {
-                  setSelectedUser(user);
-                  setPin('');
-                  setErrorMessage('');
-                }}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.avatarBox, { backgroundColor: roleInfo.bg }]}>
-                  <MaterialCommunityIcons name={roleInfo.icon} size={28} color={roleInfo.color} />
-                </View>
-                <Text style={styles.userNameText} numberOfLines={1}>{user.name}</Text>
-                <View style={[styles.roleBadge, { backgroundColor: roleInfo.bg }]}>
-                  <Text style={[styles.roleBadgeTxt, { color: roleInfo.color }]}>
-                    {roleInfo.label.toUpperCase()}
-                  </Text>
-                </View>
-                {isSelected && (
-                  <View style={styles.selectedCheck}>
-                    <MaterialCommunityIcons name="check-circle" size={18} color="#10b981" />
+              return (
+                <TouchableOpacity 
+                  key={user.id} 
+                  style={[
+                    styles.userCard, 
+                    isMobile && { width: '47%', minWidth: 120, paddingVertical: 10, paddingHorizontal: 8 },
+                    isSelected && styles.userCardSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedUser(user);
+                    setPin('');
+                    setErrorMessage('');
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.avatarBox, isMobile && { width: 40, height: 40, borderRadius: 20, marginBottom: 4 }, { backgroundColor: roleInfo.bg }]}>
+                    <MaterialCommunityIcons name={roleInfo.icon} size={isMobile ? 22 : 28} color={roleInfo.color} />
                   </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                  <Text style={[styles.userNameText, isMobile && { fontSize: 12 }]} numberOfLines={1}>{user.name}</Text>
+                  <View style={[styles.roleBadge, { backgroundColor: roleInfo.bg }]}>
+                    <Text style={[styles.roleBadgeTxt, isMobile && { fontSize: 9 }, { color: roleInfo.color }]}>
+                      {roleInfo.label.toUpperCase()}
+                    </Text>
+                  </View>
+                  {isSelected && (
+                    <View style={styles.selectedCheck}>
+                      <MaterialCommunityIcons name="check-circle" size={18} color="#10b981" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
         {/* Panel de PIN */}
         <View style={styles.pinPanel}>
@@ -205,7 +220,7 @@ export default function PinLoginModal({ visible, onUnlock }) {
           </View>
 
         </View>
-
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -215,13 +230,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#090d16',
+  },
+  scrollContent: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20
+    minHeight: '100%',
+    paddingHorizontal: 16,
+    paddingVertical: 25,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 24
+    marginBottom: 20
   },
   logo: {
     height: 70,

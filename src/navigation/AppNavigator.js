@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TouchableOpacity, View, Text, Platform, Image, TextInput } from 'react-native';
+import { TouchableOpacity, View, Text, Platform, Image, TextInput, useWindowDimensions } from 'react-native';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -48,6 +48,9 @@ function PlaceholderScreen({ route }) {
 }
 
 export default function AppNavigator() {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
+  const isSmallMobile = width < 480;
   const [isLocked, setIsLocked] = useState(true);
   const [rateText, setRateText] = useState(globalSettings.exchangeRate || '40.00');
   const [, setHeaderTick] = useState(0);
@@ -78,33 +81,35 @@ export default function AppNavigator() {
             headerTitle: '', // Se usa headerLeft en lugar de headerTitle para pegarlo a la izquierda
             headerLeft: () => (
               <TouchableOpacity 
-                style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 15 }} 
+                style={{ flexDirection: 'row', alignItems: 'center', marginLeft: isSmallMobile ? 6 : 15 }} 
                 onPress={() => navigation.navigate('Dashboard')}
               >
                 <Image 
                   source={require('../../assets/logo.png')} 
-                  style={{ height: 40, width: 140, resizeMode: 'contain' }} 
+                  style={{ height: isSmallMobile ? 30 : 40, width: isSmallMobile ? 95 : 140, resizeMode: 'contain' }} 
                 />
               </TouchableOpacity>
             ),
             headerRight: () => (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 15, gap: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: isSmallMobile ? 6 : 15, gap: isSmallMobile ? 6 : 10 }}>
                 
                 {/* Tasa del Día Pill */}
                 <View style={{ 
                   flexDirection: 'row', 
                   alignItems: 'center', 
                   backgroundColor: '#e6f4ea', 
-                  paddingHorizontal: 10, 
-                  paddingVertical: 4, 
+                  paddingHorizontal: isSmallMobile ? 6 : 10, 
+                  paddingVertical: isSmallMobile ? 3 : 4, 
                   borderRadius: 20,
                   borderWidth: 1,
                   borderColor: '#a7f3d0'
                 }}>
-                  <MaterialCommunityIcons name="currency-usd" size={14} color="#10b981" />
-                  <Text style={{ fontSize: 12, color: '#10b981', fontWeight: 'bold', marginLeft: 2 }}>TASA:</Text>
+                  <MaterialCommunityIcons name="currency-usd" size={isSmallMobile ? 12 : 14} color="#10b981" />
+                  {!isSmallMobile && (
+                    <Text style={{ fontSize: 12, color: '#10b981', fontWeight: 'bold', marginLeft: 2 }}>TASA:</Text>
+                  )}
                   <TextInput 
-                    style={{ fontSize: 13, fontWeight: 'bold', color: '#047857', minWidth: 45, outlineStyle: 'none', marginLeft: 4}}
+                    style={{ fontSize: isSmallMobile ? 12 : 13, fontWeight: 'bold', color: '#047857', minWidth: isSmallMobile ? 36 : 45, outlineStyle: 'none', marginLeft: 2}}
                     value={rateText}
                     onChangeText={(val) => {
                       setRateText(val);
@@ -115,23 +120,25 @@ export default function AppNavigator() {
                   />
                 </View>
 
-                {/* Dropdown sucursal */}
-                <View style={{ 
-                  flexDirection: 'row', 
-                  alignItems: 'center', 
-                  backgroundColor: '#f4f6f8', 
-                  paddingHorizontal: 12, 
-                  paddingVertical: 6, 
-                  borderRadius: 20,
-                  borderWidth: 1,
-                  borderColor: '#e2e8f0'
-                }}>
-                  <MaterialCommunityIcons name="office-building" size={16} color="#6c7a8f" style={{ marginRight: 6 }} />
-                  <Text style={{ fontSize: 13, color: '#6c7a8f', fontWeight: '600', marginRight: 6 }}>
-                    PRINCIPAL (2026)
-                  </Text>
-                  <MaterialCommunityIcons name="chevron-down" size={16} color="#6c7a8f" />
-                </View>
+                {/* Dropdown sucursal - oculto en modo celular */}
+                {!isMobile && (
+                  <View style={{ 
+                    flexDirection: 'row', 
+                    alignItems: 'center', 
+                    backgroundColor: '#f4f6f8', 
+                    paddingHorizontal: 12, 
+                    paddingVertical: 6, 
+                    borderRadius: 20,
+                    borderWidth: 1,
+                    borderColor: '#e2e8f0'
+                  }}>
+                    <MaterialCommunityIcons name="office-building" size={16} color="#6c7a8f" style={{ marginRight: 6 }} />
+                    <Text style={{ fontSize: 13, color: '#6c7a8f', fontWeight: '600', marginRight: 6 }}>
+                      PRINCIPAL (2026)
+                    </Text>
+                    <MaterialCommunityIcons name="chevron-down" size={16} color="#6c7a8f" />
+                  </View>
+                )}
 
                 {/* Botón Usuario Activo / Cambiar */}
                 <TouchableOpacity 
@@ -139,8 +146,8 @@ export default function AppNavigator() {
                     flexDirection: 'row', 
                     alignItems: 'center',
                     backgroundColor: '#f1f5f9',
-                    paddingHorizontal: 10,
-                    paddingVertical: 5,
+                    paddingHorizontal: isSmallMobile ? 6 : 10,
+                    paddingVertical: isSmallMobile ? 4 : 5,
                     borderRadius: 20,
                     borderWidth: 1,
                     borderColor: '#cbd5e1'
@@ -150,22 +157,24 @@ export default function AppNavigator() {
                 >
                   <View style={{
                     backgroundColor: globalCurrentUser.role === 'owner' ? '#e11d48' : globalCurrentUser.role === 'admin' ? '#8b5cf6' : globalCurrentUser.role === 'cook' ? '#d97706' : '#0284c7',
-                    width: 24,
-                    height: 24,
+                    width: isSmallMobile ? 22 : 24,
+                    height: isSmallMobile ? 22 : 24,
                     borderRadius: 12,
                     justifyContent: 'center',
                     alignItems: 'center',
-                    marginRight: 6
+                    marginRight: isSmallMobile ? 0 : 6
                   }}>
                     <MaterialCommunityIcons 
                       name={globalCurrentUser.role === 'owner' ? 'shield-crown' : globalCurrentUser.role === 'admin' ? 'shield-account' : globalCurrentUser.role === 'cook' ? 'chef-hat' : 'account'} 
-                      size={14} 
+                      size={isSmallMobile ? 12 : 14} 
                       color="#ffffff" 
                     />
                   </View>
-                  <Text style={{ fontSize: 13, color: '#1e293b', fontWeight: 'bold' }}>
-                    {globalCurrentUser.role === 'owner' ? '🛡️ Sistema' : globalCurrentUser.name.split(' ')[0]}
-                  </Text>
+                  {!isSmallMobile && (
+                    <Text style={{ fontSize: 13, color: '#1e293b', fontWeight: 'bold' }}>
+                      {globalCurrentUser.role === 'owner' ? '🛡️ Sistema' : globalCurrentUser.name.split(' ')[0]}
+                    </Text>
+                  )}
                 </TouchableOpacity>
 
                 {/* Botón Salir / Bloquear */}
@@ -174,16 +183,18 @@ export default function AppNavigator() {
                     flexDirection: 'row', 
                     alignItems: 'center', 
                     backgroundColor: '#fee2e2', 
-                    paddingHorizontal: 10, 
-                    paddingVertical: 6, 
+                    paddingHorizontal: isSmallMobile ? 8 : 10, 
+                    paddingVertical: isSmallMobile ? 5 : 6, 
                     borderRadius: 18,
                     borderWidth: 1,
                     borderColor: '#fca5a5'
                   }}
                   onPress={handleLockSession}
                 >
-                  <MaterialCommunityIcons name="lock-outline" size={14} color="#ef4444" style={{ marginRight: 4 }} />
-                  <Text style={{ fontSize: 12, color: '#ef4444', fontWeight: 'bold' }}>Bloquear</Text>
+                  <MaterialCommunityIcons name="lock-outline" size={14} color="#ef4444" style={!isSmallMobile ? { marginRight: 4 } : {}} />
+                  {!isSmallMobile && (
+                    <Text style={{ fontSize: 12, color: '#ef4444', fontWeight: 'bold' }}>Bloquear</Text>
+                  )}
                 </TouchableOpacity>
 
               </View>

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { globalTables, globalActiveOrders, createOrder } from '../store/mockDb';
 
 export default function BillingScreen({ navigation }) {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 600;
   const [activeTab, setActiveTab] = useState('dine_in');
   const [refresh, setRefresh] = useState(0);
 
@@ -36,54 +38,57 @@ export default function BillingScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <View style={[styles.container, isMobile && { paddingHorizontal: 15, paddingTop: 15 }]}>
         
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.navigate('Dashboard')} style={{marginRight: 15}}>
-              <Image source={require('../../assets/logo.png')} style={{width: 120, height: 40, resizeMode: 'contain'}} />
+        <View style={[styles.header, isMobile && { marginBottom: 15 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity onPress={() => navigation.navigate('Dashboard')} style={{marginRight: 10}}>
+              <Image source={require('../../assets/logo.png')} style={{width: isMobile ? 90 : 120, height: isMobile ? 30 : 40, resizeMode: 'contain'}} />
             </TouchableOpacity>
-          <View style={{marginTop: 15}}>
-            <Text style={styles.pageTitle}>Facturación y Pedidos</Text>
-            <Text style={styles.pageSubtitle}>Gestión de Mesas, Delivery y Pick-up</Text>
+            <View>
+              <Text style={[styles.pageTitle, isMobile && { fontSize: 18 }]}>Facturación y Pedidos</Text>
+              <Text style={[styles.pageSubtitle, isMobile && { fontSize: 11 }]}>Mesas, Delivery y Pick-up</Text>
+            </View>
           </View>
         </View>
 
         {/* TABS */}
-        <View style={styles.tabsContainer}>
+        <View style={[styles.tabsContainer, isMobile && { marginBottom: 15, padding: 3 }]}>
           <TouchableOpacity 
-            style={[styles.tab, activeTab === 'dine_in' && styles.tabActive]}
+            style={[styles.tab, activeTab === 'dine_in' && styles.tabActive, isMobile && { paddingVertical: 8 }]}
             onPress={() => setActiveTab('dine_in')}
           >
-            <MaterialCommunityIcons name="silverware-fork-knife" size={20} color={activeTab === 'dine_in' ? '#fff' : '#64748b'} />
-            <Text style={[styles.tabText, activeTab === 'dine_in' && styles.tabTextActive]}>Salón (Mesas)</Text>
+            <MaterialCommunityIcons name="silverware-fork-knife" size={isMobile ? 16 : 20} color={activeTab === 'dine_in' ? '#fff' : '#64748b'} />
+            <Text style={[styles.tabText, activeTab === 'dine_in' && styles.tabTextActive, isMobile && { fontSize: 11, marginLeft: 4 }]}>Salón</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.tab, activeTab === 'pickup' && styles.tabActive]}
+            style={[styles.tab, activeTab === 'pickup' && styles.tabActive, isMobile && { paddingVertical: 8 }]}
             onPress={() => setActiveTab('pickup')}
           >
-            <MaterialCommunityIcons name="shopping" size={20} color={activeTab === 'pickup' ? '#fff' : '#64748b'} />
-            <Text style={[styles.tabText, activeTab === 'pickup' && styles.tabTextActive]}>Para Llevar</Text>
+            <MaterialCommunityIcons name="shopping" size={isMobile ? 16 : 20} color={activeTab === 'pickup' ? '#fff' : '#64748b'} />
+            <Text style={[styles.tabText, activeTab === 'pickup' && styles.tabTextActive, isMobile && { fontSize: 11, marginLeft: 4 }]}>Para Llevar</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.tab, activeTab === 'delivery' && styles.tabActive]}
+            style={[styles.tab, activeTab === 'delivery' && styles.tabActive, isMobile && { paddingVertical: 8 }]}
             onPress={() => setActiveTab('delivery')}
           >
-            <MaterialCommunityIcons name="motorbike" size={20} color={activeTab === 'delivery' ? '#fff' : '#64748b'} />
-            <Text style={[styles.tabText, activeTab === 'delivery' && styles.tabTextActive]}>A Domicilio</Text>
+            <MaterialCommunityIcons name="motorbike" size={isMobile ? 16 : 20} color={activeTab === 'delivery' ? '#fff' : '#64748b'} />
+            <Text style={[styles.tabText, activeTab === 'delivery' && styles.tabTextActive, isMobile && { fontSize: 11, marginLeft: 4 }]}>Delivery</Text>
           </TouchableOpacity>
         </View>
 
         {/* CONTENT */}
         <ScrollView contentContainerStyle={styles.content}>
           {activeTab === 'dine_in' && (
-            <View style={styles.grid}>
+            <View style={[styles.grid, isMobile && { gap: 12 }]}>
               {globalTables.map(table => (
                 <TouchableOpacity 
                   key={table.id}
                   style={[
                     styles.tableCard,
+                    isMobile && { width: (width - 42) / 2, height: 125, padding: 10 },
                     table.status === 'occupied' && styles.tableCardOccupied,
                     table.status === 'billed' && styles.tableCardBilled
                   ]}
