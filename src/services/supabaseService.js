@@ -3,14 +3,155 @@ import {
   globalDirectory, 
   globalRawMaterials, 
   globalRecipes, 
+  globalFinishedGoods,
   globalTables, 
   globalUsers, 
   globalOrderHistory, 
-  globalSettings 
+  globalSettings,
+  persistData
 } from '../store/mockDb';
 
 export const supabaseService = {
-  // Migración masiva de datos locales hacia la base de datos Supabase
+  // 1. Subir solo el menú / recetas a Supabase
+  uploadRecipes: async () => {
+    if (!supabase) throw new Error("Supabase no está configurado. Conéctelo en Configuración primero.");
+    if (!globalRecipes || globalRecipes.length === 0) {
+      throw new Error("No hay platos en la memoria de esta PC para subir.");
+    }
+    const recipeData = globalRecipes.map(r => ({
+      id: r.id,
+      name: r.name,
+      category: r.category || 'Platos Principales',
+      sale_price: Number(r.salePrice || r.price || 0),
+      cost: Number(r.cost || 0),
+      image: r.image || '',
+      ingredients: Array.isArray(r.ingredients) ? r.ingredients : [],
+      is_active: true
+    }));
+    const { error } = await supabase.from('recipes').upsert(recipeData);
+    if (error) throw new Error("Error subiendo recetas: " + error.message);
+    return recipeData.length;
+  },
+
+  // 2. Descargar recetas / menú desde Supabase hacia la memoria de esta PC
+  downloadRecipes: async () => {
+    if (!supabase) throw new Error("Supabase no está conectado.");
+    const { data, error } = await supabase.from('recipes').select('*', 500);
+    if (error) throw new Error("Error descargando recetas: " + error.message);
+    if (!data || data.length === 0) return 0;
+
+    data.forEach(cloudRecipe => {
+      const existingIdx = globalRecipes.findIndex(r => r.id === cloudRecipe.id || r.name.toLowerCase() === (cloudRecipe.name || '').toLowerCase());
+      const formatted = {
+        id: cloudRecipe.id,
+        name: cloudRecipe.name,
+        category: cloudRecipe.category || 'Platos Principales',
+        image: cloudRecipe.image || '',
+        outputType: 'finished',
+        outputId: `FG-${cloudRecipe.id}`,
+        yieldAmount: 1,
+        yieldUnit: 'unit',
+        price: Number(cloudRecipe.sale_price || 0),
+        salePrice: Number(cloudRecipe.sale_price || 0),
+        cost: Number(cloudRecipe.cost || 0),
+        ingredients: Array.isArray(cloudRecipe.ingredients) ? cloudRecipe.ingredients : []
+      };
+
+      if (existingIdx !== -1) {
+        globalRecipes[existingIdx] = { ...globalRecipes[existingIdx], ...formatted };
+      } else {
+        globalRecipes.push(formatted);
+      }
+
+      // Garantizar que exista en Productos Terminados para inventario
+      const fgExists = globalFinishedGoods.find(fg => fg.id === formatted.outputId || fg.name === formatted.name);
+      if (!fgExists) {
+        globalFinishedGoods.push({
+          id: formatted.outputId,
+          name: formatted.name,
+          baseType: 'unit',
+          baseStock: 0,
+          baseCost: formatted.cost,
+          minStock: 5
+        });
+      }
+    });
+
+    persistData();
+    return data.length;
+  },
+
+  // 3. Sincronizar 1 receta individual al crear o editar
+  syncRecipe: async (r) => {
+    if (!supabase) return;
+    try {
+      await supabase.from('recipes').upsert([{
+        id: r.id,
+        name: r.name,
+        category: r.category || 'Platos Principales',
+        sale_price: Number(r.salePrice || r.price || 0),
+        cost: Number(r.cost || 0),
+        image: r.image || '',
+        ingredients: Array.isArray(r.ingredients) ? r.ingredients : [],
+        is_active: true
+      }]);
+    } catch (e) {
+      console.warn("Error auto-sync receta:", e.message);
+    }
+  },
+
+  // 4. Descargar todos los datos disponibles en la nube (Menú, Clientes, Configuración)
+  downloadAllData: async () => {
+    if (!supabase) throw new Error("Supabase no está conectado.");
+    const stats = { recipes: 0, customers: 0 };
+    
+    // Recetas
+    try {
+      const recCount = await supabaseService.downloadRecipes();
+      stats.recipes = recCount;
+    } catch (e) {
+      console.warn("Error descargando recetas:", e.message);
+    }
+
+    // Clientes
+    try {
+      const { data: custs } = await supabase.from('customers').select('*', 500);
+      if (custs && custs.length > 0) {
+        custs.forEach(c => {
+          if (!globalDirectory.some(d => d.id === c.id || (d.docId && d.docId === c.doc_id))) {
+            globalDirectory.push({
+              id: c.id,
+              name: c.name,
+              docId: c.doc_id,
+              phone: c.phone,
+              email: c.email,
+              address: c.address,
+              type: c.type || 'Clientes'
+            });
+          }
+        });
+        stats.customers = custs.length;
+      }
+    } catch (e) {
+      console.warn("Error descargando clientes:", e.message);
+    }
+
+    // Configuración (tasa, etc.)
+    try {
+      const { data: settings } = await supabase.from('settings').select('*', 50);
+      if (settings && settings.length > 0) {
+        const rateRow = settings.find(s => s.key === 'exchange_rate');
+        if (rateRow && rateRow.value) {
+          globalSettings.exchangeRate = rateRow.value.toString();
+        }
+      }
+    } catch (e) {}
+
+    persistData();
+    return stats;
+  },
+
+  // 5. Migración masiva de datos locales hacia la base de datos Supabase
   uploadLocalData: async () => {
     if (!supabase) throw new Error("Supabase no está configurado. Conéctelo en Configuración primero.");
 
@@ -61,10 +202,11 @@ export const supabaseService = {
         id: r.id,
         name: r.name,
         category: r.category || 'Platos Principales',
-        sale_price: r.salePrice || r.price || 0,
-        cost: r.cost || 0,
+        sale_price: Number(r.salePrice || r.price || 0),
+        cost: Number(r.cost || 0),
         image: r.image || '',
-        ingredients: r.ingredients || []
+        ingredients: Array.isArray(r.ingredients) ? r.ingredients : [],
+        is_active: true
       }));
       const { error } = await supabase.from('recipes').upsert(recipeData);
       if (error) throw new Error("Error subiendo recetas: " + error.message);

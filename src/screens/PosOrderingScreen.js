@@ -38,6 +38,45 @@ export default function PosOrderingScreen({ route, navigation }) {
   const [newClientName, setNewClientName] = useState('');
   const [newClientDocId, setNewClientDocId] = useState('');
   const [ticketModalVisible, setTicketModalVisible] = useState(false);
+  const [isSyncingMenu, setIsSyncingMenu] = useState(false);
+
+  const handleCloudMenuSync = async () => {
+    setIsSyncingMenu(true);
+    try {
+      const { supabaseService } = await import('../services/supabaseService');
+      if (globalRecipes.length === 0) {
+        // En esta PC no hay platos, descargarlos directamente
+        const count = await supabaseService.downloadRecipes();
+        if (count > 0) {
+          alert(`🎉 ¡Éxito! Se descargaron ${count} platos desde la Nube Supabase.`);
+          setTick(t => t + 1);
+        } else {
+          alert("ℹ️ La base de datos en la nube aún no tiene platos subidos.\n\nPor favor, abre el sistema en la PC del restaurante (donde creaste el menú) y presiona 'Sincronizar Menú' para subirlos con 1 clic.");
+        }
+      } else {
+        // En esta PC ya hay platos guardados
+        const action = typeof window !== 'undefined' ? window.confirm(
+          `Tienes ${globalRecipes.length} platos en esta PC.\n\n` +
+          `• Clic en ACEPTAR para SUBIR estos platos a la Nube (para que se vean en las otras PCs y celulares).\n\n` +
+          `• Clic en CANCELAR si prefieres DESCARGAR/ACTUALIZAR desde la Nube hacia esta PC.`
+        ) : false;
+
+        if (action) {
+          const uploaded = await supabaseService.uploadRecipes();
+          alert(`☁️ ¡Menú Subido con Éxito!\n\nSe sincronizaron ${uploaded} platos en la nube Supabase. Ahora cualquier otra PC, laptop o celular los verá al abrir el sistema.`);
+        } else {
+          const count = await supabaseService.downloadRecipes();
+          alert(`📥 Se actualizaron ${count} platos desde la Nube hacia esta PC.`);
+          setTick(t => t + 1);
+        }
+      }
+    } catch (err) {
+      alert("Error de sincronización con la nube: " + err.message);
+    } finally {
+      setIsSyncingMenu(false);
+    }
+  };
+
   // Split Payments States
   const [payMode, setPayMode] = useState('single'); // 'single' o 'split'
   const [splitPayments, setSplitPayments] = useState([]);
@@ -451,20 +490,39 @@ export default function PosOrderingScreen({ route, navigation }) {
               <View>
                 <Text style={styles.dateText}>{new Date().toLocaleDateString('es-ES', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
               </View>
-              <View style={[styles.searchBox, isMobile && { width: 160, height: 38 }]}>
-                <MaterialCommunityIcons name="magnify" size={18} color={COLORS.textMuted} />
-                <TextInput 
-                  style={[styles.searchInput, isMobile && { fontSize: 12 }]} 
-                  placeholder="Buscar menu..." 
-                  placeholderTextColor={COLORS.textMuted}
-                  value={menuSearchQuery}
-                  onChangeText={setMenuSearchQuery}
-                />
-                {menuSearchQuery.length > 0 && (
-                  <TouchableOpacity onPress={() => setMenuSearchQuery('')} style={{ padding: 4 }}>
-                    <MaterialCommunityIcons name="close-circle" size={16} color={COLORS.textMuted} />
-                  </TouchableOpacity>
-                )}
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                {/* Botón Sincronizar Menú con Nube */}
+                <TouchableOpacity 
+                  style={[styles.cloudSyncBtn, isMobile && { paddingHorizontal: 8, height: 38 }, isSyncingMenu && { opacity: 0.6 }]} 
+                  onPress={handleCloudMenuSync}
+                  disabled={isSyncingMenu}
+                >
+                  <MaterialCommunityIcons 
+                    name={isSyncingMenu ? "cloud-sync" : "cloud-sync-outline"} 
+                    size={isMobile ? 16 : 18} 
+                    color="#38bdf8" 
+                  />
+                  <Text style={[styles.cloudSyncBtnText, isMobile && { fontSize: 11 }]}>
+                    {isSyncingMenu ? "Sincronizando..." : (isMobile ? "Nube" : "Sincronizar Menú")}
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={[styles.searchBox, isMobile && { width: 140, height: 38 }]}>
+                  <MaterialCommunityIcons name="magnify" size={18} color={COLORS.textMuted} />
+                  <TextInput 
+                    style={[styles.searchInput, isMobile && { fontSize: 12 }]} 
+                    placeholder="Buscar menu..." 
+                    placeholderTextColor={COLORS.textMuted}
+                    value={menuSearchQuery}
+                    onChangeText={setMenuSearchQuery}
+                  />
+                  {menuSearchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setMenuSearchQuery('')} style={{ padding: 4 }}>
+                      <MaterialCommunityIcons name="close-circle" size={16} color={COLORS.textMuted} />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             </View>
 
@@ -500,21 +558,44 @@ export default function PosOrderingScreen({ route, navigation }) {
                   ))}
                 </View>
               ) : (
-                <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 50, width: '100%' }}>
-                  <MaterialCommunityIcons name="food-off" size={48} color={COLORS.textMuted} style={{ marginBottom: 12 }} />
-                  <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: 'bold', marginBottom: 6 }}>
-                    No se encontraron productos
+                <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 45, width: '100%', paddingHorizontal: 20 }}>
+                  <MaterialCommunityIcons 
+                    name={globalRecipes.length === 0 ? "cloud-sync-outline" : "food-off"} 
+                    size={52} 
+                    color={globalRecipes.length === 0 ? "#38bdf8" : COLORS.textMuted} 
+                    style={{ marginBottom: 14 }} 
+                  />
+                  <Text style={{ color: COLORS.text, fontSize: 17, fontWeight: 'bold', marginBottom: 6, textAlign: 'center' }}>
+                    {globalRecipes.length === 0 
+                      ? "Esta computadora aún no tiene platos descargados" 
+                      : "No se encontraron productos"}
                   </Text>
-                  <Text style={{ color: COLORS.textMuted, fontSize: 13, textAlign: 'center', maxWidth: 300, marginBottom: 16 }}>
-                    {menuSearchQuery ? `No hay resultados para "${menuSearchQuery}"` : `No hay productos en la categoría "${activeCategory}"`}
+                  <Text style={{ color: COLORS.textMuted, fontSize: 13, textAlign: 'center', maxWidth: 440, marginBottom: 18, lineHeight: 18 }}>
+                    {globalRecipes.length === 0 
+                      ? "Si creaste los platos en la PC del restaurante, puedes descargarlos aquí al instante con 1 solo clic:" 
+                      : (menuSearchQuery ? `No hay resultados para "${menuSearchQuery}"` : `No hay productos en la categoría "${activeCategory}"`)}
                   </Text>
-                  {menuSearchQuery.length > 0 && (
+
+                  {globalRecipes.length === 0 ? (
                     <TouchableOpacity 
-                      style={{ backgroundColor: COLORS.card, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border }}
-                      onPress={() => setMenuSearchQuery('')}
+                      style={{ backgroundColor: '#0284c7', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                      onPress={handleCloudMenuSync}
+                      disabled={isSyncingMenu}
                     >
-                      <Text style={{ color: COLORS.primary, fontWeight: 'bold', fontSize: 13 }}>Limpiar búsqueda</Text>
+                      <MaterialCommunityIcons name="cloud-download" size={20} color="#fff" />
+                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>
+                        {isSyncingMenu ? "Descargando..." : "Descargar Menú desde la Nube"}
+                      </Text>
                     </TouchableOpacity>
+                  ) : (
+                    menuSearchQuery.length > 0 && (
+                      <TouchableOpacity 
+                        style={{ backgroundColor: COLORS.card, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border }}
+                        onPress={() => setMenuSearchQuery('')}
+                      >
+                        <Text style={{ color: COLORS.primary, fontWeight: 'bold', fontSize: 13 }}>Limpiar búsqueda</Text>
+                      </TouchableOpacity>
+                    )
                   )}
                 </View>
               )}
@@ -1143,7 +1224,9 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
   restaurantName: { fontSize: 26, fontWeight: 'bold', color: COLORS.text },
   dateText: { fontSize: 14, color: COLORS.textMuted, marginTop: 5, textTransform: 'capitalize' },
-  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, paddingHorizontal: 15, borderRadius: 8, height: 45, width: 250, borderWidth: 1, borderColor: COLORS.border },
+  cloudSyncBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0c4a6e', paddingHorizontal: 12, height: 45, borderRadius: 8, borderWidth: 1, borderColor: '#0284c7', gap: 6 },
+  cloudSyncBtnText: { color: '#38bdf8', fontWeight: '700', fontSize: 12 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, paddingHorizontal: 15, borderRadius: 8, height: 45, width: 220, borderWidth: 1, borderColor: COLORS.border },
   searchInput: { flex: 1, marginLeft: 10, color: COLORS.text, outlineStyle: 'none' },
 
   categoryScroll: { flexGrow: 0, marginBottom: 10 },

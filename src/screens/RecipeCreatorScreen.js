@@ -60,8 +60,7 @@ export default function RecipeCreatorScreen({ navigation }) {
       minStock: 5
     });
 
-    // 2. Crear la Receta apuntando a ese FG
-    globalRecipes.push({
+    const newRecipe = {
       id: `REC-${Date.now().toString().slice(-6)}`,
       name: recipeName,
       category: category,
@@ -71,13 +70,28 @@ export default function RecipeCreatorScreen({ navigation }) {
       yieldAmount: 1,
       yieldUnit: 'unit',
       price: priceNum,
+      salePrice: priceNum,
+      cost: totalCost,
       ingredients: ingredients.map(i => ({ id: i.ingredientId, amount: i.baseAmount }))
-    });
+    };
+
+    // 2. Crear la Receta apuntando a ese FG
+    globalRecipes.push(newRecipe);
     
-    // Guardar usando el hack de localStorage
-    if (typeof window !== 'undefined' && window.localStorage) {
-      // Dejar que el autoguardado lo haga en 3s
-    }
+    // Guardar inmediatamente
+    try {
+      const { persistData } = require('../store/mockDb');
+      if (persistData) persistData();
+    } catch (e) {}
+
+    // Sincronizar en segundo plano con la nube Supabase para que llegue a todas las PCs
+    try {
+      import('../services/supabaseService').then(({ supabaseService }) => {
+        if (supabaseService && supabaseService.syncRecipe) {
+          supabaseService.syncRecipe(newRecipe);
+        }
+      }).catch(() => {});
+    } catch (e) {}
 
     alert("Ficha técnica y Producto creados. ¡Ya aparecerá en el Menú de Ventas!");
     navigation.navigate('Recipes');

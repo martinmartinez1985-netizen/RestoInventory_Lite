@@ -19,6 +19,9 @@ import {
   globalUsers, 
   globalCurrentUser, 
   globalMasterConfig, 
+  globalRecipes,
+  exportMenuJson,
+  importMenuFromJson,
   addUser, 
   updateUser, 
   deleteUser, 
@@ -171,6 +174,93 @@ export default function SettingsScreen({ navigation }) {
       alert("Error durante la migración: " + err.message);
     } finally {
       setIsMigratingSupa(false);
+    }
+  };
+
+  const handleUploadRecipes = async () => {
+    if (!isSupaConnected) {
+      alert("Primero debe conectar y guardar sus credenciales de Supabase.");
+      return;
+    }
+    if (!globalRecipes || globalRecipes.length === 0) {
+      alert("No hay platos guardados en la memoria de esta PC para subir.");
+      return;
+    }
+    const ok = typeof window !== 'undefined' ? window.confirm(`¿Desea subir los ${globalRecipes.length} platos creados en esta PC a la Nube Supabase para que se sincronicen en todas las otras PCs y celulares?`) : true;
+    if (!ok) return;
+
+    setIsMigratingSupa(true);
+    try {
+      const count = await supabaseService.uploadRecipes();
+      alert(`🎉 ¡Menú Subido con Éxito!\n\nSe subieron ${count} platos a la Nube Supabase.\nAhora cualquier otra computadora o celular verá el menú al abrir la aplicación.`);
+    } catch (err) {
+      alert("Error subiendo el menú: " + err.message);
+    } finally {
+      setIsMigratingSupa(false);
+    }
+  };
+
+  const handleDownloadRecipes = async () => {
+    if (!isSupaConnected) {
+      alert("Primero debe conectar y guardar sus credenciales de Supabase.");
+      return;
+    }
+    setIsMigratingSupa(true);
+    try {
+      const count = await supabaseService.downloadRecipes();
+      if (count > 0) {
+        alert(`🎉 ¡Menú Descargado con Éxito!\n\nSe descargaron y guardaron ${count} platos desde la Nube Supabase en esta PC.`);
+        refresh();
+      } else {
+        alert("La base de datos en la nube aún no tiene platos subidos.\n\nPor favor, abre el sistema en la PC del restaurante donde creaste los platos y presiona 'Subir Menú a la Nube'.");
+      }
+    } catch (err) {
+      alert("Error descargando el menú: " + err.message);
+    } finally {
+      setIsMigratingSupa(false);
+    }
+  };
+
+  const handleDownloadAllData = async () => {
+    if (!isSupaConnected) {
+      alert("Primero debe conectar y guardar sus credenciales de Supabase.");
+      return;
+    }
+    setIsMigratingSupa(true);
+    try {
+      const stats = await supabaseService.downloadAllData();
+      alert(`🎉 ¡Sincronización Completa!\n\n• Platos descargados: ${stats.recipes}\n• Clientes descargados: ${stats.customers}\n• Configuración actualizada.`);
+      refresh();
+    } catch (err) {
+      alert("Error descargando datos: " + err.message);
+    } finally {
+      setIsMigratingSupa(false);
+    }
+  };
+
+  const handleExportMenu = () => {
+    try {
+      const jsonStr = exportMenuJson();
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        navigator.clipboard.writeText(jsonStr);
+        alert(`📋 ¡Menú copiado al portapapeles!\n\nSe copiaron ${globalRecipes.length} platos en formato JSON.\nPuedes ir a otra PC, abrir Configuración y darle a 'Importar Menú'.`);
+      } else {
+        alert("Copia este texto:\n\n" + jsonStr);
+      }
+    } catch (e) {
+      alert("Error al exportar: " + e.message);
+    }
+  };
+
+  const handleImportMenu = () => {
+    const jsonStr = typeof window !== 'undefined' ? window.prompt("Pegue aquí el JSON o código del menú copiado de la otra PC:") : null;
+    if (!jsonStr || !jsonStr.trim()) return;
+    const res = importMenuFromJson(jsonStr.trim());
+    if (res.success) {
+      alert(`🎉 ¡Menú importado con éxito!\n\nSe cargaron ${res.count} platos a esta computadora.`);
+      refresh();
+    } else {
+      alert("Error importando menú: " + res.error);
     }
   };
 
@@ -729,24 +819,127 @@ export default function SettingsScreen({ navigation }) {
                 </View>
               </View>
 
+              {/* Acciones de Sincronización del Menú */}
+              <View style={[styles.securityCard, { marginTop: 20 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <MaterialCommunityIcons name="silverware-fork-knife" size={22} color="#0284c7" />
+                  <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.text }}>
+                    Sincronización del Menú de Comidas (Todas las PCs)
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 16, lineHeight: 19 }}>
+                  Tienes <Text style={{ fontWeight: 'bold', color: COLORS.text }}>{globalRecipes.length} platos</Text> en la memoria de esta computadora. Usa estos botones para que todas las laptops, teléfonos y PCs del restaurante compartan el mismo menú en vivo.
+                </Text>
+
+                <View style={{ flexDirection: isMobile ? 'column' : 'row', gap: 12 }}>
+                  <TouchableOpacity 
+                    style={[styles.saveMasterPinBtn, { flex: 1, backgroundColor: '#10b981' }]}
+                    onPress={handleUploadRecipes}
+                    disabled={!isSupaConnected || isMigratingSupa}
+                  >
+                    <MaterialCommunityIcons name="cloud-upload" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                    <Text style={styles.saveMasterPinBtnText}>
+                      {isMigratingSupa ? 'Sincronizando...' : '☁️ Subir Menú a la Nube (Desde esta PC)'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={[styles.saveMasterPinBtn, { flex: 1, backgroundColor: '#0284c7' }]}
+                    onPress={handleDownloadRecipes}
+                    disabled={!isSupaConnected || isMigratingSupa}
+                  >
+                    <MaterialCommunityIcons name="cloud-download" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                    <Text style={styles.saveMasterPinBtnText}>
+                      {isMigratingSupa ? 'Descargando...' : '📥 Descargar Menú de la Nube (A esta PC)'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Acciones de Migración Completa */}
+              <View style={[styles.securityCard, { marginTop: 20 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <MaterialCommunityIcons name="database-sync" size={22} color="#8b5cf6" />
+                  <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.text }}>
+                    Sincronización Masiva del Sistema (Inventario, Clientes, Ventas)
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 16 }}>
+                  Sube o descarga todo el contenido del restaurante entre dispositivos.
+                </Text>
+
+                <View style={{ flexDirection: isMobile ? 'column' : 'row', gap: 12 }}>
+                  <TouchableOpacity 
+                    style={[styles.saveMasterPinBtn, { flex: 1, backgroundColor: '#8b5cf6' }]}
+                    onPress={handleMigrateDataToSupabase}
+                    disabled={!isSupaConnected || isMigratingSupa}
+                  >
+                    <MaterialCommunityIcons name="cloud-upload-outline" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                    <Text style={styles.saveMasterPinBtnText}>
+                      {isMigratingSupa ? 'Subiendo todo...' : '🚀 Subir Todo a Supabase'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={[styles.saveMasterPinBtn, { flex: 1, backgroundColor: '#475569' }]}
+                    onPress={handleDownloadAllData}
+                    disabled={!isSupaConnected || isMigratingSupa}
+                  >
+                    <MaterialCommunityIcons name="cloud-download-outline" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                    <Text style={styles.saveMasterPinBtnText}>
+                      {isMigratingSupa ? 'Descargando...' : '📥 Descargar Todo a esta PC'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Respaldo y Transferencia Rápida Offline (JSON) */}
+              <View style={[styles.securityCard, { marginTop: 20 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <MaterialCommunityIcons name="content-copy" size={22} color="#f59e0b" />
+                  <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.text }}>
+                    Respaldo y Transferencia Directa del Menú (Offline)
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 16 }}>
+                  Copia todos los platos al portapapeles para pegarlos en otra PC al instante sin depender de la nube.
+                </Text>
+
+                <View style={{ flexDirection: isMobile ? 'column' : 'row', gap: 12 }}>
+                  <TouchableOpacity 
+                    style={[styles.saveMasterPinBtn, { flex: 1, backgroundColor: '#f59e0b' }]}
+                    onPress={handleExportMenu}
+                  >
+                    <MaterialCommunityIcons name="clipboard-arrow-up-outline" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                    <Text style={styles.saveMasterPinBtnText}>
+                      📋 Copiar Menú (Exportar)
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={[styles.saveMasterPinBtn, { flex: 1, backgroundColor: '#0d9488' }]}
+                    onPress={handleImportMenu}
+                  >
+                    <MaterialCommunityIcons name="clipboard-arrow-down-outline" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                    <Text style={styles.saveMasterPinBtnText}>
+                      📥 Pegar Menú (Importar)
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
               {/* Guía Rápida de Configuración en Supabase */}
               <View style={[styles.guideCard, { marginTop: 20 }]}>
-                <Text style={styles.guideTitle}>📋 Pasos para crear tu Base de Datos en Supabase (2 minutos):</Text>
+                <Text style={styles.guideTitle}>📋 ¿Cómo funciona la sincronización en línea?</Text>
                 <View style={{ gap: 10 }}>
                   <Text style={{ fontSize: 13, color: '#334155' }}>
-                    <Text style={{ fontWeight: 'bold' }}>1. Crea tu cuenta gratuita</Text> en <Text style={{ color: '#0284c7', fontWeight: 'bold' }}>https://supabase.com</Text>.
+                    <Text style={{ fontWeight: 'bold' }}>1. En la PC del Restaurante:</Text> Presiona <Text style={{ color: '#059669', fontWeight: 'bold' }}>"Subir Menú a la Nube"</Text> para enviar todos los platos guardados en esa máquina a la base de datos central Supabase.
                   </Text>
                   <Text style={{ fontSize: 13, color: '#334155' }}>
-                    <Text style={{ fontWeight: 'bold' }}>2. Crea un nuevo proyecto</Text> (puedes llamarlo <Text style={{ fontWeight: 'bold' }}>lago-wok-zhen</Text>).
+                    <Text style={{ fontWeight: 'bold' }}>2. En las Otras PCs o Teléfonos:</Text> Al abrir el Punto de Venta (POS) o presionar <Text style={{ color: '#0284c7', fontWeight: 'bold' }}>"Descargar Menú de la Nube"</Text>, los platos se descargarán automáticamente y quedarán guardados en esa computadora.
                   </Text>
                   <Text style={{ fontSize: 13, color: '#334155' }}>
-                    <Text style={{ fontWeight: 'bold' }}>3. Ejecuta el esquema SQL</Text>: En el menú lateral de Supabase ve a <Text style={{ fontWeight: 'bold' }}>SQL Editor</Text>, abre o pega el archivo <Text style={{ fontWeight: 'bold', color: '#047857' }}>supabase_schema.sql</Text> generado en tu proyecto y dale clic a <Text style={{ fontWeight: 'bold' }}>Run</Text>.
-                  </Text>
-                  <Text style={{ fontSize: 13, color: '#334155' }}>
-                    <Text style={{ fontWeight: 'bold' }}>4. Copia tus claves</Text>: En Supabase ve a <Text style={{ fontWeight: 'bold' }}>Project Settings ➡️ API</Text>, copia la URL y la anon key, pégalas arriba y presiona <Text style={{ fontWeight: 'bold' }}>"Probar Conexión"</Text>.
-                  </Text>
-                  <Text style={{ fontSize: 13, color: '#334155' }}>
-                    <Text style={{ fontWeight: 'bold' }}>5. Migra tus datos</Text>: Presiona el botón verde <Text style={{ fontWeight: 'bold' }}>"Subir y Migrar Datos a Supabase"</Text> para transferir todos tus platos, clientes y recetas a la nube.
+                    <Text style={{ fontWeight: 'bold' }}>3. Platos Nuevos:</Text> Cada vez que crees un plato nuevo en el creador de recetas, el sistema intentará subirlo automáticamente a la nube en segundo plano.
                   </Text>
                 </View>
               </View>

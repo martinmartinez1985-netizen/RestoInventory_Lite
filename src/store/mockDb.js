@@ -676,6 +676,77 @@ export const loadData = () => {
 
 loadData();
 
+// Auto-sincronización inicial con la nube Supabase al iniciar en Web
+if (Platform.OS === 'web' && typeof window !== 'undefined') {
+  setTimeout(async () => {
+    try {
+      if (globalRecipes.length === 0) {
+        const { supabaseService } = await import('../services/supabaseService');
+        const count = await supabaseService.downloadRecipes();
+        if (count > 0) {
+          console.log(`☁️ ${count} platos sincronizados automáticamente desde Supabase Cloud.`);
+        }
+      }
+    } catch (e) {
+      console.log("Auto-sync inicial:", e.message);
+    }
+  }, 1000);
+}
+
+// Respaldo y transferencia manual de Menú
+export const exportMenuJson = () => {
+  return JSON.stringify(globalRecipes, null, 2);
+};
+
+export const importMenuFromJson = (jsonStr) => {
+  try {
+    const list = JSON.parse(jsonStr);
+    if (!Array.isArray(list)) throw new Error("El formato debe ser una lista de platos válida.");
+    let count = 0;
+    list.forEach(item => {
+      if (!item.name) return;
+      const existingIdx = globalRecipes.findIndex(r => r.id === item.id || r.name.toLowerCase() === item.name.toLowerCase());
+      const formatted = {
+        id: item.id || `REC-${Date.now().toString().slice(-6)}`,
+        name: item.name,
+        category: item.category || 'Platos Principales',
+        image: item.image || '',
+        outputType: 'finished',
+        outputId: item.outputId || `FG-${item.id}`,
+        yieldAmount: 1,
+        yieldUnit: 'unit',
+        price: Number(item.price || item.salePrice || item.sale_price || 0),
+        salePrice: Number(item.salePrice || item.price || item.sale_price || 0),
+        cost: Number(item.cost || 0),
+        ingredients: Array.isArray(item.ingredients) ? item.ingredients : []
+      };
+
+      if (existingIdx !== -1) {
+        globalRecipes[existingIdx] = { ...globalRecipes[existingIdx], ...formatted };
+      } else {
+        globalRecipes.push(formatted);
+      }
+
+      const fgExists = globalFinishedGoods.find(fg => fg.id === formatted.outputId || fg.name === formatted.name);
+      if (!fgExists) {
+        globalFinishedGoods.push({
+          id: formatted.outputId,
+          name: formatted.name,
+          baseType: 'unit',
+          baseStock: 0,
+          baseCost: formatted.cost,
+          minStock: 5
+        });
+      }
+      count++;
+    });
+    persistData();
+    return { success: true, count };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+};
+
 // Hack global para guardar automaticamente (setInterval) en vez de modificar todas las funciones
 if (Platform.OS === 'web' && typeof window !== 'undefined') {
   setInterval(persistData, 3000); // Autoguardar cada 3 segundos
