@@ -17,6 +17,15 @@ export default function BillingScreen({ navigation }) {
     }, [])
   );
 
+  // Re-render en tiempo real ante cambios en la nube
+  React.useEffect(() => {
+    const onSync = () => setRefresh(prev => prev + 1);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('RESTOSYS_DATA_SYNCED', onSync);
+      return () => window.removeEventListener('RESTOSYS_DATA_SYNCED', onSync);
+    }
+  }, []);
+
   const handleTablePress = (table) => {
     let order = globalActiveOrders.find(o => o.tableId === table.id && o.status !== 'paid');
     

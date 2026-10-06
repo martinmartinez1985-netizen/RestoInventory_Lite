@@ -34,6 +34,14 @@ export default function DashboardScreen({ navigation }) {
     }
   }, [isFocused]);
 
+  React.useEffect(() => {
+    const onSync = () => setTick(t => t + 1);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('RESTOSYS_DATA_SYNCED', onSync);
+      return () => window.removeEventListener('RESTOSYS_DATA_SYNCED', onSync);
+    }
+  }, []);
+
   // Filtrar modulos segun los permisos especificos asignados al usuario activo
   const allowedRoutes = getUserPermissions(globalCurrentUser);
   const filteredModules = MODULES.filter(m => allowedRoutes.includes(m.route));

@@ -70,8 +70,12 @@ function KitchenScreenContent({ navigation }) {
   const [isKitchenModalVisible, setIsKitchenModalVisible] = useState(false);
   const [tick, setTick] = useState(0);
 
-  // Auto-refrescar cada 3 segundos sincronizando con Supabase en tiempo real
+  // Auto-refrescar y sincronizar con Supabase en tiempo real
   useEffect(() => {
+    const onSync = () => setTick(t => t + 1);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('RESTOSYS_DATA_SYNCED', onSync);
+    }
     let interval;
     if (Platform.OS === 'web') {
       interval = setInterval(async () => {
@@ -81,7 +85,12 @@ function KitchenScreenContent({ navigation }) {
         setTick(t => t + 1);
       }, 3000);
     }
-    return () => clearInterval(interval);
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('RESTOSYS_DATA_SYNCED', onSync);
+      }
+      if (interval) clearInterval(interval);
+    };
   }, []);
 
   // Filtrar órdenes que tengan al menos 1 ítem enviado a cocina y no despachado

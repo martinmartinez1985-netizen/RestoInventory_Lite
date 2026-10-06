@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -48,6 +48,15 @@ export default function DailySalesScreen({ navigation }) {
   const [selectedAuditOrder, setSelectedAuditOrder] = useState(null);
   const [isAuditModalVisible, setIsAuditModalVisible] = useState(false);
   const today = toISODateOnly(new Date());
+
+  const [, setLiveTick] = useState(0);
+  useEffect(() => {
+    const onSync = () => setLiveTick(t => t + 1);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('RESTOSYS_DATA_SYNCED', onSync);
+      return () => window.removeEventListener('RESTOSYS_DATA_SYNCED', onSync);
+    }
+  }, []);
 
   // Rango de fechas
   const [startDate, setStartDate] = useState(today);

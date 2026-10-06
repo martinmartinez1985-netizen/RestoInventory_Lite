@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, Platform, ScrollView, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalShift, closeShift, registerShiftSale, openShift } from '../store/mockDb';
@@ -10,6 +10,14 @@ export default function CashCloseScreen({ navigation }) {
   const [hasClosed, setHasClosed] = useState(false);
   const [latestReport, setLatestReport] = useState(null);
   const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const onSync = () => setTick(t => t + 1);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('RESTOSYS_DATA_SYNCED', onSync);
+      return () => window.removeEventListener('RESTOSYS_DATA_SYNCED', onSync);
+    }
+  }, []);
 
   const expectedCash = (globalShift.openingCash || 0) + (globalShift.sales?.usdCash || 0);
   const inputCashNum = parseFloat(actualCash) || 0;

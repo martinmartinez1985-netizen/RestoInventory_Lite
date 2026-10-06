@@ -153,43 +153,93 @@ export const globalShift = {
 
 export const globalZReports = [];
 
-// Mock function to register a sale
+// Puentes de sincronización en vivo hacia Supabase Cloud
+export const pushOrderToCloud = (order) => {
+  if (Platform.OS === 'web') {
+    import('../services/supabaseService').then(({ supabaseService }) => {
+      if (supabaseService && supabaseService.pushOrder) supabaseService.pushOrder(order);
+    }).catch(() => {});
+  }
+};
+
+export const pushTableToCloud = (table) => {
+  if (Platform.OS === 'web') {
+    import('../services/supabaseService').then(({ supabaseService }) => {
+      if (supabaseService && supabaseService.pushTable) supabaseService.pushTable(table);
+    }).catch(() => {});
+  }
+};
+
+export const pushShiftToCloud = () => {
+  if (Platform.OS === 'web') {
+    import('../services/supabaseService').then(({ supabaseService }) => {
+      if (supabaseService && supabaseService.pushShift) supabaseService.pushShift(globalShift);
+    }).catch(() => {});
+  }
+};
+
+export const pushZReportToCloud = (report) => {
+  if (Platform.OS === 'web') {
+    import('../services/supabaseService').then(({ supabaseService }) => {
+      if (supabaseService && supabaseService.pushZReport) supabaseService.pushZReport(report);
+    }).catch(() => {});
+  }
+};
+
+export const openShift = (cash = 0) => {
+  globalShift.isOpen = true;
+  globalShift.openingCash = Number(cash) || 0;
+  globalShift.startTime = new Date().toISOString();
+  globalShift.sales = { usdCash: 0, usdDigital: 0, bsCash: 0, bsDigital: 0, cxc: 0 };
+  persistData();
+  pushShiftToCloud();
+  return globalShift;
+};
+
+// Registrar venta en turno y sincronizar en vivo
 export const registerShiftSale = (amount, method, currency) => {
   if (!globalShift.isOpen) return;
   
-  // Migración segura si viene de localStorage viejo
   if (globalShift.sales.usdCash === undefined) {
     globalShift.sales = { usdCash: 0, usdDigital: 0, bsCash: 0, bsDigital: 0, cxc: 0 };
   }
   
   if (currency === 'USD') {
     if (method === 'Efectivo') globalShift.sales.usdCash += amount;
-    else globalShift.sales.usdDigital += amount; // Zelle, Binance, Otro
+    else globalShift.sales.usdDigital += amount;
   } else if (currency === 'VES') {
     if (method === 'Efectivo') globalShift.sales.bsCash += amount;
-    else globalShift.sales.bsDigital += amount; // Pago Movil, Transferencia, POS
+    else globalShift.sales.bsDigital += amount;
   } else if (currency === 'CxC') {
     globalShift.sales.cxc += amount;
   }
+  persistData();
+  pushShiftToCloud();
 };
 
 export const closeShift = (actualCash, discrepancies) => {
+  const actual = Number(actualCash || 0);
+  const diff = typeof discrepancies === 'object' ? Number(discrepancies.cash || 0) : Number(discrepancies || 0);
+  const totalSalesVal = (globalShift.sales?.usdCash || 0) + (globalShift.sales?.usdDigital || 0) + (globalShift.sales?.bsCash || 0) + (globalShift.sales?.bsDigital || 0);
+
   const report = {
     id: 'Z-' + Date.now().toString().slice(-6),
     date: new Date().toISOString(),
-    expectedCash: globalShift.openingCash + globalShift.sales.cash,
-    actualCash,
-    discrepancy: discrepancies.cash,
-    totalSales: globalShift.sales.cash + globalShift.sales.card + globalShift.sales.transfer
+    expectedCash: (globalShift.openingCash || 0) + (globalShift.sales?.usdCash || 0),
+    actualCash: actual,
+    discrepancy: diff,
+    totalSales: totalSalesVal
   };
   globalZReports.push(report);
   
   // Reset for next shift
-  globalShift.openingCash = actualCash; // El efectivo que quedó físicamente se vuelve el fondo del día siguiente
-  globalShift.sales.cash = 0;
-  globalShift.sales.card = 0;
-  globalShift.sales.transfer = 0;
+  globalShift.isOpen = false;
+  globalShift.openingCash = actual;
+  globalShift.sales = { usdCash: 0, usdDigital: 0, bsCash: 0, bsDigital: 0, cxc: 0 };
   
+  persistData();
+  pushZReportToCloud(report);
+  pushShiftToCloud();
   return report;
 };
 
@@ -220,9 +270,14 @@ export const createOrder = (type, tableId = null, customerName = null) => {
   
   if (type === 'dine_in' && tableId) {
     const table = globalTables.find(t => t.id === tableId);
-    if (table) table.status = 'occupied';
+    if (table) {
+      table.status = 'occupied';
+      pushTableToCloud(table);
+    }
   }
   
+  persistData();
+  pushOrderToCloud(newOrder);
   return newOrder;
 };
 
@@ -747,9 +802,19 @@ export const importMenuFromJson = (jsonStr) => {
   }
 };
 
-// Hack global para guardar automaticamente (setInterval) en vez de modificar todas las funciones
+// Autoguardado local y Sincronización en vivo constante con Supabase Cloud
 if (Platform.OS === 'web' && typeof window !== 'undefined') {
-  setInterval(persistData, 3000); // Autoguardar cada 3 segundos
+  setInterval(persistData, 3000); // Autoguardar localmente cada 3 segundos
+
+  // Sincronización en vivo con todas las PCs y dispositivos cada 3.5 segundos
+  setInterval(async () => {
+    try {
+      const { supabaseService } = await import('../services/supabaseService');
+      if (supabaseService && supabaseService.pullLiveSync) {
+        await supabaseService.pullLiveSync();
+      }
+    } catch (e) {}
+  }, 3500);
 }
 
 export const recordCompletedOrder = (order, paymentInfo = {}) => {
@@ -811,7 +876,18 @@ export const recordCompletedOrder = (order, paymentInfo = {}) => {
     globalActiveOrders.splice(activeIdx, 1);
   }
 
+  // Liberar mesa si aplica y sincronizar
+  if (order.type === 'dine_in' && order.tableId) {
+    const table = globalTables.find(t => t.id === order.tableId);
+    if (table) {
+      table.status = 'free';
+      pushTableToCloud(table);
+    }
+  }
+
   persistData();
+  pushOrderToCloud(completedOrder);
+  pushShiftToCloud();
   return completedOrder;
 };
 

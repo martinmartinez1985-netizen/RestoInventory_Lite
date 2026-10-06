@@ -6,7 +6,10 @@ import {
   globalFinishedGoods,
   globalTables, 
   globalUsers, 
+  globalActiveOrders,
   globalOrderHistory, 
+  globalShift,
+  globalZReports,
   globalSettings,
   persistData
 } from '../store/mockDb';
@@ -297,7 +300,7 @@ export const supabaseService = {
   },
 
   syncCustomer: async (c) => {
-    if (!supabase) return;
+    if (!supabase || !c) return;
     try {
       await supabase.from('customers').upsert([{
         id: c.id,
@@ -313,26 +316,250 @@ export const supabaseService = {
     }
   },
 
-  syncOrder: async (o) => {
-    if (!supabase) return;
+  // Sincronizar orden individual (abierta o pagada) en la nube
+  pushOrder: async (o) => {
+    if (!supabase || !o) return;
     try {
-      await supabase.from('orders').upsert([{
+      const orderPayload = {
         id: o.id,
-        order_number: o.id,
+        order_number: o.orderNumber || o.id,
         type: o.type || 'dine_in',
         table_id: o.tableId || null,
         customer_name: o.customerName || 'Cliente General',
         client_id: o.clientId || '',
-        status: o.status || 'paid',
-        total: o.total || 0,
-        items: o.items || [],
+        status: o.status || 'open',
+        total: Number(o.total || 0),
+        items: Array.isArray(o.items) ? o.items : [],
         payment: o.payment || {},
-        payments: o.payments || [],
+        payments: Array.isArray(o.payments) ? o.payments : [],
         created_at: o.createdAt || new Date().toISOString(),
-        paid_at: o.payment?.paidAt || o.createdAt
+        paid_at: o.payment?.paidAt || (o.status === 'paid' ? (o.paidAt || new Date().toISOString()) : null)
+      };
+      await supabase.from('orders').upsert([orderPayload]);
+    } catch (e) {
+      console.warn("Error push orden en vivo:", e.message);
+    }
+  },
+
+  // Sincronizar mesa en vivo
+  pushTable: async (t) => {
+    if (!supabase || !t) return;
+    try {
+      await supabase.from('tables').upsert([{
+        id: t.id,
+        label: t.name || t.label || t.id,
+        capacity: Number(t.capacity || 4),
+        status: t.status || 'free',
+        updated_at: new Date().toISOString()
       }]);
     } catch (e) {
-      console.warn("Error sync orden:", e.message);
+      console.warn("Error push mesa:", e.message);
+    }
+  },
+
+  // Sincronizar estado de turno / caja en vivo
+  pushShift: async (s) => {
+    if (!supabase) return;
+    const shiftObj = s || globalShift;
+    try {
+      const payload = {
+        id: 'current_shift',
+        is_open: Boolean(shiftObj.isOpen),
+        opened_at: shiftObj.startTime || new Date().toISOString(),
+        initial_cash: { amount: Number(shiftObj.openingCash || 0) },
+        sales: shiftObj.sales || { usdCash: 0, usdDigital: 0, bsCash: 0, bsDigital: 0, cxc: 0 },
+        opened_by_user: 'cajero'
+      };
+      await supabase.from('shifts').upsert([payload]);
+    } catch (e) {
+      console.warn("Error push turno caja:", e.message);
+    }
+  },
+
+  // Sincronizar Reporte Z al cerrar caja
+  pushZReport: async (report) => {
+    if (!supabase || !report) return;
+    try {
+      const payload = {
+        id: report.id,
+        is_open: false,
+        closed_at: report.date || new Date().toISOString(),
+        actual_cash: { amount: Number(report.actualCash || 0) },
+        discrepancies: { amount: Number(report.discrepancy || 0) },
+        sales: { totalSales: Number(report.totalSales || 0) }
+      };
+      await supabase.from('shifts').upsert([payload]);
+    } catch (e) {
+      console.warn("Error push reporte Z:", e.message);
+    }
+  },
+
+  // Sincronizar configuración (ej. Tasa de cambio)
+  pushSetting: async (key, val) => {
+    if (!supabase) return;
+    try {
+      await supabase.from('settings').upsert([{
+        key: String(key),
+        value: String(val),
+        updated_at: new Date().toISOString()
+      }]);
+    } catch (e) {
+      console.warn("Error push setting:", e.message);
+    }
+  },
+
+  // MOTOR EN VIVO: Consulta periódica de cambios en la nube y actualización de estado
+  pullLiveSync: async () => {
+    if (!supabase) return false;
+    let hasChanges = false;
+    try {
+      // 1. Órdenes (Activas y Ventas Diarias)
+      const { data: cloudOrders } = await supabase.from('orders').select('*', 100);
+      if (cloudOrders && Array.isArray(cloudOrders) && cloudOrders.length > 0) {
+        cloudOrders.forEach(co => {
+          let parsedItems = co.items;
+          if (typeof parsedItems === 'string') {
+            try { parsedItems = JSON.parse(parsedItems); } catch (e) {}
+          }
+          let parsedPayments = co.payments;
+          if (typeof parsedPayments === 'string') {
+            try { parsedPayments = JSON.parse(parsedPayments); } catch (e) {}
+          }
+          let parsedPayment = co.payment;
+          if (typeof parsedPayment === 'string') {
+            try { parsedPayment = JSON.parse(parsedPayment); } catch (e) {}
+          }
+
+          const formatted = {
+            id: co.id,
+            orderNumber: co.order_number || co.id,
+            type: co.type || 'dine_in',
+            tableId: co.table_id,
+            customerName: co.customer_name || 'Cliente General',
+            clientId: co.client_id || '',
+            status: co.status || 'open',
+            total: Number(co.total || 0),
+            items: Array.isArray(parsedItems) ? parsedItems : [],
+            payment: parsedPayment || {},
+            payments: Array.isArray(parsedPayments) ? parsedPayments : [],
+            createdAt: co.created_at,
+            paidAt: co.paid_at || co.created_at
+          };
+
+          if (formatted.status === 'paid') {
+            // Si estaba en órdenes activas de esta PC, removerla
+            const activeIdx = globalActiveOrders.findIndex(o => o.id === formatted.id);
+            if (activeIdx !== -1) {
+              globalActiveOrders.splice(activeIdx, 1);
+              hasChanges = true;
+            }
+            // Agregar o actualizar en historial de ventas
+            const histIdx = globalOrderHistory.findIndex(o => o.id === formatted.id);
+            if (histIdx !== -1) {
+              if (JSON.stringify(globalOrderHistory[histIdx]) !== JSON.stringify(formatted)) {
+                globalOrderHistory[histIdx] = formatted;
+                hasChanges = true;
+              }
+            } else {
+              globalOrderHistory.unshift(formatted);
+              hasChanges = true;
+            }
+          } else {
+            // Orden abierta o en cocina
+            const activeIdx = globalActiveOrders.findIndex(o => o.id === formatted.id);
+            if (activeIdx !== -1) {
+              if (JSON.stringify(globalActiveOrders[activeIdx]) !== JSON.stringify(formatted)) {
+                globalActiveOrders[activeIdx] = formatted;
+                hasChanges = true;
+              }
+            } else {
+              globalActiveOrders.push(formatted);
+              hasChanges = true;
+            }
+          }
+        });
+      }
+
+      // 2. Mesas
+      const { data: cloudTables } = await supabase.from('tables').select('*', 50);
+      if (cloudTables && Array.isArray(cloudTables) && cloudTables.length > 0) {
+        cloudTables.forEach(ct => {
+          const localTable = globalTables.find(t => t.id === ct.id);
+          if (localTable && localTable.status !== ct.status) {
+            localTable.status = ct.status;
+            hasChanges = true;
+          }
+        });
+      }
+
+      // 3. Turno de Caja y Arqueos
+      const { data: cloudShifts } = await supabase.from('shifts').select('*', 30);
+      if (cloudShifts && Array.isArray(cloudShifts)) {
+        const liveShiftRow = cloudShifts.find(s => s.id === 'current_shift');
+        if (liveShiftRow) {
+          const cloudIsOpen = Boolean(liveShiftRow.is_open);
+          const cloudOpening = Number(liveShiftRow.initial_cash?.amount || 0);
+          let cloudSales = liveShiftRow.sales;
+          if (typeof cloudSales === 'string') {
+            try { cloudSales = JSON.parse(cloudSales); } catch (e) {}
+          }
+          if (cloudSales && (
+            globalShift.isOpen !== cloudIsOpen ||
+            JSON.stringify(globalShift.sales) !== JSON.stringify(cloudSales)
+          )) {
+            globalShift.isOpen = cloudIsOpen;
+            globalShift.openingCash = cloudOpening;
+            if (cloudSales) globalShift.sales = cloudSales;
+            hasChanges = true;
+          }
+        }
+
+        // Reportes Z
+        const zRows = cloudShifts.filter(s => s.id && s.id.startsWith('Z-'));
+        zRows.forEach(zr => {
+          if (!globalZReports.some(z => z.id === zr.id)) {
+            let zSales = zr.sales;
+            if (typeof zSales === 'string') {
+              try { zSales = JSON.parse(zSales); } catch (e) {}
+            }
+            globalZReports.unshift({
+              id: zr.id,
+              date: zr.closed_at || new Date().toISOString(),
+              actualCash: Number(zr.actual_cash?.amount || 0),
+              discrepancy: Number(zr.discrepancies?.amount || 0),
+              totalSales: Number(zSales?.totalSales || 0)
+            });
+            hasChanges = true;
+          }
+        });
+      }
+
+      // 4. Tasa de cambio
+      const { data: settings } = await supabase.from('settings').select('*', 20);
+      if (settings && Array.isArray(settings)) {
+        const rateRow = settings.find(s => s.key === 'exchange_rate');
+        if (rateRow && rateRow.value && rateRow.value !== globalSettings.exchangeRate) {
+          globalSettings.exchangeRate = rateRow.value.toString();
+          hasChanges = true;
+        }
+      }
+
+      // 5. Si la PC no tiene menú, descargarlo
+      if (globalRecipes.length === 0) {
+        const recCount = await supabaseService.downloadRecipes();
+        if (recCount > 0) hasChanges = true;
+      }
+
+      if (hasChanges) {
+        persistData();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('RESTOSYS_DATA_SYNCED'));
+        }
+      }
+      return hasChanges;
+    } catch (e) {
+      console.warn("Live sync error:", e.message);
+      return false;
     }
   }
 };
