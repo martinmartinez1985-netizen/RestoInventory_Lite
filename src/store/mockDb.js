@@ -267,17 +267,7 @@ export const createOrder = (type, tableId = null, customerName = null) => {
     createdAt: new Date().toISOString()
   };
   globalActiveOrders.push(newOrder);
-  
-  if (type === 'dine_in' && tableId) {
-    const table = globalTables.find(t => t.id === tableId);
-    if (table) {
-      table.status = 'occupied';
-      pushTableToCloud(table);
-    }
-  }
-  
   persistData();
-  pushOrderToCloud(newOrder);
   return newOrder;
 };
 

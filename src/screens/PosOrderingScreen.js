@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform, TextInput, Image, useWindowDimensions, Modal } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import TicketModal from '../components/TicketModal';
-import { globalActiveOrders, globalRecipes, processProductionBatch, updateStock, registerShiftSale, globalTables, globalSettings, globalDirectory, addContactToGlobal, recordCompletedOrder, globalOrderHistory, pushOrderToCloud, persistData } from '../store/mockDb';
+import { globalActiveOrders, globalRecipes, processProductionBatch, updateStock, registerShiftSale, globalTables, globalSettings, globalDirectory, addContactToGlobal, recordCompletedOrder, globalOrderHistory, pushOrderToCloud, pushTableToCloud, persistData } from '../store/mockDb';
 
 // Paleta de colores Dark Theme
 const COLORS = {
@@ -250,6 +250,22 @@ export default function PosOrderingScreen({ route, navigation }) {
     return 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=300&q=80';
   };
 
+  const handleExitPos = () => {
+    if (order && (!order.items || order.items.length === 0)) {
+      const idx = globalActiveOrders.findIndex(o => o.id === order.id);
+      if (idx !== -1) globalActiveOrders.splice(idx, 1);
+      if (order.type === 'dine_in' && order.tableId) {
+        const t = globalTables.find(tbl => tbl.id === order.tableId);
+        if (t) {
+          t.status = 'free';
+          pushTableToCloud(t);
+        }
+      }
+      persistData();
+    }
+    navigation.goBack();
+  };
+
   const addItem = (recipe) => {
     const targetId = recipe.id || recipe.recipeId;
     const existing = order.items.find(i => (targetId && (i.recipeId === targetId || i.id === targetId)) || i.name === recipe.name);
@@ -272,7 +288,18 @@ export default function PosOrderingScreen({ route, navigation }) {
         image: recipe.image || getImageForCategory(recipe.category)
       });
     }
+
+    if (order.type === 'dine_in' && order.tableId) {
+      const t = globalTables.find(tbl => tbl.id === order.tableId);
+      if (t && t.status !== 'occupied') {
+        t.status = 'occupied';
+        pushTableToCloud(t);
+      }
+    }
+
     recalcTotal();
+    persistData();
+    try { pushOrderToCloud(order); } catch (e) {}
   };
 
   const increaseQty = (item) => {
@@ -343,7 +370,16 @@ export default function PosOrderingScreen({ route, navigation }) {
     } else {
       order.items = order.items.filter(i => i !== item);
     }
+    if (order.items.length === 0 && order.type === 'dine_in' && order.tableId) {
+      const t = globalTables.find(tbl => tbl.id === order.tableId);
+      if (t) {
+        t.status = 'free';
+        pushTableToCloud(t);
+      }
+    }
     recalcTotal();
+    persistData();
+    try { pushOrderToCloud(order); } catch (e) {}
   };
 
   const removeItem = (item) => {
@@ -354,7 +390,16 @@ export default function PosOrderingScreen({ route, navigation }) {
     }
     
     order.items = order.items.filter(i => i !== item);
+    if (order.items.length === 0 && order.type === 'dine_in' && order.tableId) {
+      const t = globalTables.find(tbl => tbl.id === order.tableId);
+      if (t) {
+        t.status = 'free';
+        pushTableToCloud(t);
+      }
+    }
     recalcTotal();
+    persistData();
+    try { pushOrderToCloud(order); } catch (e) {}
   };
 
   const handlePay = () => {
@@ -409,7 +454,10 @@ export default function PosOrderingScreen({ route, navigation }) {
 
     if (order.type === 'dine_in') {
       const table = globalTables.find(t => t.id === order.tableId);
-      if (table) table.status = 'free';
+      if (table) {
+        table.status = 'free';
+        pushTableToCloud(table);
+      }
     }
 
     setCheckoutVisible(false);
@@ -437,7 +485,7 @@ export default function PosOrderingScreen({ route, navigation }) {
       {/* Barra superior de navegación exclusiva para móvil */}
       {isMobile && (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.sidebar, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}>
+          <TouchableOpacity onPress={handleExitPos} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}>
             <MaterialCommunityIcons name="arrow-left" size={16} color="#fff" />
             <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginLeft: 4 }}>Mesas</Text>
           </TouchableOpacity>
@@ -470,7 +518,7 @@ export default function PosOrderingScreen({ route, navigation }) {
               <MaterialCommunityIcons name="storefront" size={28} color={COLORS.primary} />
             </View>
             
-            <TouchableOpacity style={[styles.navItem, {backgroundColor: COLORS.primary + '20'}]} onPress={() => navigation.goBack()}>
+            <TouchableOpacity style={[styles.navItem, {backgroundColor: COLORS.primary + '20'}]} onPress={handleExitPos}>
               <MaterialCommunityIcons name="home-outline" size={24} color={COLORS.primary} />
               <Text style={[styles.navText, {color: COLORS.primary}]}>Volver</Text>
             </TouchableOpacity>

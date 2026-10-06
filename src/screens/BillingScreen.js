@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { globalTables, globalActiveOrders, createOrder } from '../store/mockDb';
+import { globalTables, globalActiveOrders, createOrder, persistData, pushTableToCloud } from '../store/mockDb';
 
 export default function BillingScreen({ navigation }) {
   const { width } = useWindowDimensions();
@@ -10,9 +10,31 @@ export default function BillingScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('dine_in');
   const [refresh, setRefresh] = useState(0);
 
-  // Force re-render on focus to show updated table statuses
+  // Calcular el estado real y dinámico de cada mesa (Solo ocupada si tiene platos activos)
+  const getTableStatus = (table) => {
+    const activeOrder = globalActiveOrders.find(o => o.tableId === table.id && o.status !== 'paid');
+    if (activeOrder && activeOrder.items && activeOrder.items.length > 0) {
+      return activeOrder.status === 'billed' ? 'billed' : 'occupied';
+    }
+    return 'free';
+  };
+
+  // Limpieza y auto-detección defensiva al enfocar la pantalla
   useFocusEffect(
     React.useCallback(() => {
+      // Limpiar órdenes activas sin ítems
+      for (let i = globalActiveOrders.length - 1; i >= 0; i--) {
+        const o = globalActiveOrders[i];
+        if (!o.items || o.items.length === 0) {
+          globalActiveOrders.splice(i, 1);
+        }
+      }
+      // Actualizar estado de las mesas
+      globalTables.forEach(t => {
+        const active = globalActiveOrders.find(o => o.tableId === t.id && o.status !== 'paid' && o.items && o.items.length > 0);
+        t.status = active ? (active.status === 'billed' ? 'billed' : 'occupied') : 'free';
+      });
+      persistData();
       setRefresh(prev => prev + 1);
     }, [])
   );
@@ -26,15 +48,30 @@ export default function BillingScreen({ navigation }) {
     }
   }, []);
 
+  const handleFreeAllEmptyTables = () => {
+    for (let i = globalActiveOrders.length - 1; i >= 0; i--) {
+      const o = globalActiveOrders[i];
+      if (!o.items || o.items.length === 0) {
+        globalActiveOrders.splice(i, 1);
+      }
+    }
+    globalTables.forEach(t => {
+      const active = globalActiveOrders.find(o => o.tableId === t.id && o.status !== 'paid' && o.items && o.items.length > 0);
+      t.status = active ? (active.status === 'billed' ? 'billed' : 'occupied') : 'free';
+      pushTableToCloud(t);
+    });
+    persistData();
+    setRefresh(r => r + 1);
+    alert("¡Mesas actualizadas y liberadas con éxito!");
+  };
+
   const handleTablePress = (table) => {
     let order = globalActiveOrders.find(o => o.tableId === table.id && o.status !== 'paid');
     
     if (!order) {
-      // Create new open tab for this table
       order = createOrder('dine_in', table.id, null);
     }
     
-    // Navigate to ordering screen with the order ID
     navigation.navigate('PosOrdering', { orderId: order.id });
   };
 
@@ -59,6 +96,14 @@ export default function BillingScreen({ navigation }) {
               <Text style={[styles.pageSubtitle, isMobile && { fontSize: 11 }]}>Mesas, Delivery y Pick-up</Text>
             </View>
           </View>
+
+          <TouchableOpacity 
+            onPress={handleFreeAllEmptyTables}
+            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#cbd5e1', gap: 6 }}
+          >
+            <MaterialCommunityIcons name="broom" size={16} color="#64748b" />
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569' }}>Liberar Vacías</Text>
+          </TouchableOpacity>
         </View>
 
         {/* TABS */}
@@ -92,43 +137,46 @@ export default function BillingScreen({ navigation }) {
         <ScrollView contentContainerStyle={styles.content}>
           {activeTab === 'dine_in' && (
             <View style={[styles.grid, isMobile && { gap: 12 }]}>
-              {globalTables.map(table => (
-                <TouchableOpacity 
-                  key={table.id}
-                  style={[
-                    styles.tableCard,
-                    isMobile && { width: (width - 42) / 2, height: 125, padding: 10 },
-                    table.status === 'occupied' && styles.tableCardOccupied,
-                    table.status === 'billed' && styles.tableCardBilled
-                  ]}
-                  onPress={() => handleTablePress(table)}
-                >
-                  <View style={styles.tableHeader}>
-                    <Text style={[
-                      styles.tableTitle,
-                      table.status !== 'free' && { color: '#fff' }
-                    ]}>{table.name}</Text>
-                    <View style={styles.capacityBadge}>
-                      <MaterialCommunityIcons name="account" size={12} color="#64748b" />
-                      <Text style={styles.capacityText}>{table.capacity}</Text>
+              {globalTables.map(table => {
+                const effectiveStatus = getTableStatus(table);
+                return (
+                  <TouchableOpacity 
+                    key={table.id}
+                    style={[
+                      styles.tableCard,
+                      isMobile && { width: (width - 42) / 2, height: 125, padding: 10 },
+                      effectiveStatus === 'occupied' && styles.tableCardOccupied,
+                      effectiveStatus === 'billed' && styles.tableCardBilled
+                    ]}
+                    onPress={() => handleTablePress(table)}
+                  >
+                    <View style={styles.tableHeader}>
+                      <Text style={[
+                        styles.tableTitle,
+                        effectiveStatus !== 'free' && { color: '#fff' }
+                      ]}>{table.name}</Text>
+                      <View style={styles.capacityBadge}>
+                        <MaterialCommunityIcons name="account" size={12} color={effectiveStatus !== 'free' ? '#fff' : '#64748b'} />
+                        <Text style={[styles.capacityText, effectiveStatus !== 'free' && { color: '#fff' }]}>{table.capacity}</Text>
+                      </View>
                     </View>
-                  </View>
-                  
-                  <View style={styles.tableBody}>
-                    <MaterialCommunityIcons 
-                      name={table.status === 'free' ? 'chair-rolling' : (table.status === 'occupied' ? 'account-group' : 'receipt')} 
-                      size={32} 
-                      color={table.status === 'free' ? '#cbd5e1' : '#fff'} 
-                    />
-                    <Text style={[
-                      styles.statusText,
-                      table.status !== 'free' && { color: '#e2e8f0' }
-                    ]}>
-                      {table.status === 'free' ? 'Libre' : (table.status === 'occupied' ? 'Ocupada' : 'Por Cobrar')}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
+                    
+                    <View style={styles.tableBody}>
+                      <MaterialCommunityIcons 
+                        name={effectiveStatus === 'free' ? 'chair-rolling' : (effectiveStatus === 'occupied' ? 'account-group' : 'receipt')} 
+                        size={32} 
+                        color={effectiveStatus === 'free' ? '#cbd5e1' : '#fff'} 
+                      />
+                      <Text style={[
+                        styles.statusText,
+                        effectiveStatus !== 'free' && { color: '#e2e8f0' }
+                      ]}>
+                        {effectiveStatus === 'free' ? 'Libre' : (effectiveStatus === 'occupied' ? 'Ocupada' : 'Por Cobrar')}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
 
