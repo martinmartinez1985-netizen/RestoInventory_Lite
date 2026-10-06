@@ -22,7 +22,8 @@ export default function PosOrderingScreen({ route, navigation }) {
   const { orderId } = route.params;
   const [order, setOrder] = useState(null);
   const [, setTick] = useState(0);
-  const [activeCategory, setActiveCategory] = useState('Platos Principales');
+  const [activeCategory, setActiveCategory] = useState('Todos');
+  const [menuSearchQuery, setMenuSearchQuery] = useState('');
   const [checkoutVisible, setCheckoutVisible] = useState(false);
   const [payCurrency, setPayCurrency] = useState('USD');
   const [payMethod, setPayMethod] = useState('');
@@ -94,6 +95,27 @@ export default function PosOrderingScreen({ route, navigation }) {
     setSplitAmountInput(splitCurrency === 'VES' ? (newRemainingUsd * currentRate).toFixed(2) : newRemainingUsd.toFixed(2));
   };
   const [ticketModalType, setTicketModalType] = useState('kitchen');
+
+  // Filtrado de categorías y buscador de recetas / platos
+  const standardCats = ['Todos', 'Platos Principales', 'Burger', 'Noodles', 'Drinks', 'Arroz'];
+  const recipeCats = Array.from(new Set(globalRecipes.map(r => r.category).filter(Boolean)));
+  const categoriesList = Array.from(new Set([...standardCats, ...recipeCats]));
+
+  const filteredRecipes = globalRecipes.filter(recipe => {
+    const matchesCategory = activeCategory === 'Todos' || recipe.category === activeCategory;
+
+    if (!menuSearchQuery.trim()) {
+      return matchesCategory;
+    }
+
+    const queryTerms = menuSearchQuery.toLowerCase().trim().split(/\s+/);
+    const name = (recipe.name || '').toLowerCase();
+    const cat = (recipe.category || '').toLowerCase();
+    const searchableText = `${name} ${cat}`;
+
+    const matchesSearch = queryTerms.every(term => searchableText.includes(term));
+    return matchesSearch && matchesCategory;
+  });
 
   const filteredClients = globalDirectory.filter(c => c.type === 'Clientes' && (c.name.toLowerCase().includes(clientSearch.toLowerCase()) || c.docId.toLowerCase().includes(clientSearch.toLowerCase())));
 
@@ -434,14 +456,21 @@ export default function PosOrderingScreen({ route, navigation }) {
                 <TextInput 
                   style={[styles.searchInput, isMobile && { fontSize: 12 }]} 
                   placeholder="Buscar menu..." 
-                  placeholderTextColor={COLORS.textMuted} 
+                  placeholderTextColor={COLORS.textMuted}
+                  value={menuSearchQuery}
+                  onChangeText={setMenuSearchQuery}
                 />
+                {menuSearchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setMenuSearchQuery('')} style={{ padding: 4 }}>
+                    <MaterialCommunityIcons name="close-circle" size={16} color={COLORS.textMuted} />
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
 
             {/* Categorias */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-              {['Todos', 'Platos Principales', 'Burger', 'Noodles', 'Drinks', 'Arroz'].map(cat => (
+              {categoriesList.map(cat => (
                 <TouchableOpacity 
                   key={cat} 
                   style={[styles.catBadge, isMobile && { paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 }, activeCategory === cat && styles.catBadgeActive]}
@@ -454,21 +483,41 @@ export default function PosOrderingScreen({ route, navigation }) {
 
             {/* Grid de Productos */}
             <ScrollView style={styles.gridScroll}>
-              <View style={[styles.grid, isMobile && { gap: 10 }]}>
-                {globalRecipes.map((recipe, i) => (
-                  <TouchableOpacity 
-                    key={i} 
-                    style={[styles.menuCard, isMobile && { width: (width - 34) / 2 }]} 
-                    onPress={() => addItem(recipe)}
-                  >
-                    <Image source={{uri: recipe.image || 'https://via.placeholder.com/150'}} style={[styles.cardImage, isMobile && { height: 100 }]} />
-                    <View style={[styles.cardInfo, isMobile && { padding: 8 }]}>
-                      <Text style={[styles.cardTitle, isMobile && { fontSize: 12, marginBottom: 4 }]} numberOfLines={1}>{recipe.name}</Text>
-                      <Text style={[styles.cardPrice, isMobile && { fontSize: 14 }]}>${formatMoney(recipe.salePrice || recipe.price || 15.99)}</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              {filteredRecipes.length > 0 ? (
+                <View style={[styles.grid, isMobile && { gap: 10 }]}>
+                  {filteredRecipes.map((recipe, i) => (
+                    <TouchableOpacity 
+                      key={recipe.id || i} 
+                      style={[styles.menuCard, isMobile && { width: (width - 34) / 2 }]} 
+                      onPress={() => addItem(recipe)}
+                    >
+                      <Image source={{uri: recipe.image || 'https://via.placeholder.com/150'}} style={[styles.cardImage, isMobile && { height: 100 }]} />
+                      <View style={[styles.cardInfo, isMobile && { padding: 8 }]}>
+                        <Text style={[styles.cardTitle, isMobile && { fontSize: 12, marginBottom: 4 }]} numberOfLines={1}>{recipe.name}</Text>
+                        <Text style={[styles.cardPrice, isMobile && { fontSize: 14 }]}>${formatMoney(recipe.salePrice || recipe.price || 15.99)}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : (
+                <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 50, width: '100%' }}>
+                  <MaterialCommunityIcons name="food-off" size={48} color={COLORS.textMuted} style={{ marginBottom: 12 }} />
+                  <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: 'bold', marginBottom: 6 }}>
+                    No se encontraron productos
+                  </Text>
+                  <Text style={{ color: COLORS.textMuted, fontSize: 13, textAlign: 'center', maxWidth: 300, marginBottom: 16 }}>
+                    {menuSearchQuery ? `No hay resultados para "${menuSearchQuery}"` : `No hay productos en la categoría "${activeCategory}"`}
+                  </Text>
+                  {menuSearchQuery.length > 0 && (
+                    <TouchableOpacity 
+                      style={{ backgroundColor: COLORS.card, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border }}
+                      onPress={() => setMenuSearchQuery('')}
+                    >
+                      <Text style={{ color: COLORS.primary, fontWeight: 'bold', fontSize: 13 }}>Limpiar búsqueda</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
             </ScrollView>
 
             {/* Botón flotante para ver cuenta en móvil */}
