@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, FlatList, Platform, Modal, TextInput, Alert, ScrollView } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -10,6 +10,7 @@ export default function RawMaterialsScreen({ navigation }) {
   const [system, setSystem] = useState('metric'); // 'metric' | 'imperial'
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all'); // 'all' | 'weight' | 'volume' | 'unit' | 'low'
+  const [isSyncing, setIsSyncing] = useState(false);
   
   // Waste Modal State
   const [isWasteModalVisible, setIsWasteModalVisible] = useState(false);
@@ -32,6 +33,16 @@ export default function RawMaterialsScreen({ navigation }) {
     setIngredients([...globalRawMaterials]);
   }, []);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const handleSynced = () => {
+        setIngredients([...globalRawMaterials]);
+      };
+      window.addEventListener('RESTOSYS_DATA_SYNCED', handleSynced);
+      return () => window.removeEventListener('RESTOSYS_DATA_SYNCED', handleSynced);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       refreshData();
@@ -42,6 +53,54 @@ export default function RawMaterialsScreen({ navigation }) {
       return () => clearInterval(interval);
     }, [refreshData])
   );
+
+  const handleCloudSync = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const { supabaseService } = await import('../services/supabaseService');
+      if (!supabaseService) {
+        throw new Error("Servicio de sincronización no disponible.");
+      }
+
+      if (globalRawMaterials.length === 0) {
+        const count = await supabaseService.downloadInventory();
+        setIngredients([...globalRawMaterials]);
+        const msg = `Se descargaron ${count} insumo(s) exitosamente desde la nube.`;
+        if (Platform.OS === 'web') window.alert(msg);
+        else Alert.alert("Sincronización Exitosa", msg);
+      } else {
+        let shouldUpload = true;
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          shouldUpload = window.confirm(
+            "¿Deseas SUBIR este inventario a la nube para que esté disponible en celulares y tablets?\n\n- Presiona ACEPTAR para SUBIR y compartir con todos tus dispositivos.\n- Presiona CANCELAR para DESCARGAR y reemplazar con lo que esté en la nube."
+          );
+        }
+
+        if (shouldUpload) {
+          const count = await supabaseService.uploadInventory();
+          const msg = `¡Inventario subido a la nube! ${count} insumo(s) sincronizados para todos los dispositivos.`;
+          if (Platform.OS === 'web') window.alert(msg);
+          else Alert.alert("Nube Actualizada", msg);
+        } else {
+          const count = await supabaseService.downloadInventory();
+          setIngredients([...globalRawMaterials]);
+          const msg = `Se descargaron ${count} insumo(s) desde la nube.`;
+          if (Platform.OS === 'web') window.alert(msg);
+          else Alert.alert("Descarga Exitosa", msg);
+        }
+      }
+    } catch (err) {
+      console.error("Error sincronizando inventario:", err);
+      const errMsg = "Error al sincronizar con la nube: " + (err.message || err);
+      if (Platform.OS === 'web') window.alert(errMsg);
+      else Alert.alert("Error", errMsg);
+    } finally {
+      setIsSyncing(false);
+      setIngredients([...globalRawMaterials]);
+    }
+  };
+
 
   // --- FILTRADO Y BÚSQUEDA ---
   const filteredIngredients = useMemo(() => {
@@ -314,11 +373,22 @@ export default function RawMaterialsScreen({ navigation }) {
               </View>
             </View>
 
-            {/* Botón "+ Nuevo Insumo" */}
-            <TouchableOpacity style={styles.primaryAddBtn} onPress={openNewItemModal}>
-              <MaterialCommunityIcons name="plus-circle" size={18} color="#fff" />
-              <Text style={styles.primaryAddBtnTxt}>Nuevo Insumo</Text>
-            </TouchableOpacity>
+            {/* Botones de acción */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <TouchableOpacity 
+                style={[styles.syncCloudBtn, isSyncing && { opacity: 0.7 }]} 
+                onPress={handleCloudSync}
+                disabled={isSyncing}
+              >
+                <MaterialCommunityIcons name={isSyncing ? "cloud-sync-outline" : "cloud-sync"} size={18} color="#fff" />
+                <Text style={styles.syncCloudBtnTxt}>{isSyncing ? 'Sincronizando...' : 'Sincronizar Nube'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.primaryAddBtn} onPress={openNewItemModal}>
+                <MaterialCommunityIcons name="plus-circle" size={18} color="#fff" />
+                <Text style={styles.primaryAddBtnTxt}>Nuevo Insumo</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -699,6 +769,8 @@ const styles = StyleSheet.create({
 
   primaryAddBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#10b981', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, ...Platform.select({ web: { boxShadow: '0px 2px 8px rgba(16,185,129,0.3)' } }) },
   primaryAddBtnTxt: { color: '#fff', fontWeight: 'bold', fontSize: 13, marginLeft: 6 },
+  syncCloudBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0284c7', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, gap: 6, ...Platform.select({ web: { boxShadow: '0px 2px 8px rgba(2,132,199,0.3)', cursor: 'pointer' } }) },
+  syncCloudBtnTxt: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
 
   // KPI Row
   kpiRow: { flexDirection: 'row', gap: 15, marginBottom: 20 },

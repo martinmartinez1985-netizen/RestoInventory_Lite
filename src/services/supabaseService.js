@@ -2,6 +2,7 @@ import { supabase } from '../config/supabase';
 import { 
   globalDirectory, 
   globalRawMaterials, 
+  globalWip,
   globalRecipes, 
   globalFinishedGoods,
   globalTables, 
@@ -85,6 +86,162 @@ export const supabaseService = {
     return data.length;
   },
 
+  // 2b. Subir Inventario completo a Supabase (Materia Prima, En Proceso, Producto Terminado)
+  uploadInventory: async () => {
+    if (!supabase) throw new Error("Supabase no está conectado.");
+
+    // 1. Subir a la tabla raw_materials
+    if (globalRawMaterials && globalRawMaterials.length > 0) {
+      const rawData = globalRawMaterials.map(m => ({
+        id: m.id,
+        name: m.name,
+        category: m.category || 'Insumos',
+        unit: m.baseUnit || (m.baseType === 'weight' ? 'kg' : m.baseType === 'volume' ? 'l' : 'unit'),
+        stock: Number(m.baseStock || 0),
+        min_stock: Number(m.minStock || 0),
+        cost: Number(m.baseCost || 0)
+      }));
+      const { error: rawErr } = await supabase.from('raw_materials').upsert(rawData);
+      if (rawErr) console.warn("Aviso upsert raw_materials:", rawErr.message);
+    }
+
+    // 2. Guardar el snapshot completo en settings
+    await supabase.from('settings').upsert([
+      {
+        key: 'inventory_snapshot',
+        value: JSON.stringify({
+          rawMaterials: globalRawMaterials,
+          finishedGoods: globalFinishedGoods,
+          wip: globalWip,
+          updatedAt: new Date().toISOString()
+        }),
+        updated_at: new Date().toISOString()
+      }
+    ], { onConflict: 'key' });
+
+    return globalRawMaterials.length;
+  },
+
+  // 2c. Descargar Inventario completo desde Supabase hacia esta PC o celular
+  downloadInventory: async () => {
+    if (!supabase) throw new Error("Supabase no está conectado.");
+    let downloadedCount = 0;
+
+    // 1. Intentar desde settings (inventory_snapshot completo)
+    try {
+      const { data: settingsData } = await supabase.from('settings').select('*', 50);
+      if (settingsData && Array.isArray(settingsData)) {
+        const invRow = settingsData.find(s => s.key === 'inventory_snapshot');
+        if (invRow && invRow.value) {
+          const parsed = JSON.parse(invRow.value);
+          if (parsed && Array.isArray(parsed.rawMaterials) && parsed.rawMaterials.length > 0) {
+            globalRawMaterials.length = 0;
+            globalRawMaterials.push(...parsed.rawMaterials);
+            if (Array.isArray(parsed.finishedGoods)) {
+              globalFinishedGoods.length = 0;
+              globalFinishedGoods.push(...parsed.finishedGoods);
+            }
+            if (Array.isArray(parsed.wip)) {
+              globalWip.length = 0;
+              globalWip.push(...parsed.wip);
+            }
+            downloadedCount = parsed.rawMaterials.length;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Aviso lectura inventory_snapshot:", e.message);
+    }
+
+    // 2. Si no había snapshot, leer de la tabla raw_materials
+    if (downloadedCount === 0) {
+      try {
+        const { data: rawData, error: rawErr } = await supabase.from('raw_materials').select('*', 500);
+        if (!rawErr && rawData && Array.isArray(rawData) && rawData.length > 0) {
+          rawData.forEach(cloudItem => {
+            const existingIdx = globalRawMaterials.findIndex(m => m.id === cloudItem.id || m.name.toLowerCase() === (cloudItem.name || '').toLowerCase());
+            const formatted = {
+              id: cloudItem.id,
+              name: cloudItem.name,
+              category: cloudItem.category || 'Insumos',
+              baseType: cloudItem.unit === 'l' || cloudItem.unit === 'ml' ? 'volume' : (cloudItem.unit === 'unit' ? 'unit' : 'weight'),
+              baseUnit: cloudItem.unit || 'kg',
+              baseStock: Number(cloudItem.stock || 0),
+              baseCost: Number(cloudItem.cost || 0),
+              minStock: Number(cloudItem.min_stock || 0)
+            };
+            if (existingIdx !== -1) {
+              globalRawMaterials[existingIdx] = { ...globalRawMaterials[existingIdx], ...formatted };
+            } else {
+              globalRawMaterials.push(formatted);
+            }
+          });
+          downloadedCount = globalRawMaterials.length;
+        }
+      } catch (e) {}
+    }
+
+    if (downloadedCount > 0) {
+      persistData();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('RESTOSYS_DATA_SYNCED'));
+      }
+    }
+
+    return downloadedCount;
+  },
+
+  // 2d. Sincronizar 1 ingrediente individual (crear o editar)
+  pushRawMaterial: async (item) => {
+    if (!supabase || !item) return;
+    try {
+      await supabase.from('raw_materials').upsert([{
+        id: item.id,
+        name: item.name,
+        category: item.category || 'Insumos',
+        unit: item.baseUnit || (item.baseType === 'weight' ? 'kg' : item.baseType === 'volume' ? 'l' : 'unit'),
+        stock: Number(item.baseStock || 0),
+        min_stock: Number(item.minStock || 0),
+        cost: Number(item.baseCost || 0)
+      }]);
+      await supabaseService.pushInventoryStock();
+    } catch (e) {
+      console.warn("Error pushRawMaterial:", e.message);
+    }
+  },
+
+  // 2e. Eliminar ingrediente de la nube
+  deleteRawMaterial: async (itemId) => {
+    if (!supabase || !itemId) return;
+    try {
+      await supabase.from('raw_materials').delete('id', itemId);
+      await supabaseService.pushInventoryStock();
+    } catch (e) {
+      console.warn("Error deleteRawMaterial:", e.message);
+    }
+  },
+
+  // 2f. Guardar cambios de stock en la nube en tiempo real
+  pushInventoryStock: async () => {
+    if (!supabase) return;
+    try {
+      await supabase.from('settings').upsert([
+        {
+          key: 'inventory_snapshot',
+          value: JSON.stringify({
+            rawMaterials: globalRawMaterials,
+            finishedGoods: globalFinishedGoods,
+            wip: globalWip,
+            updatedAt: new Date().toISOString()
+          }),
+          updated_at: new Date().toISOString()
+        }
+      ], { onConflict: 'key' });
+    } catch (e) {
+      console.warn("Error pushInventoryStock:", e.message);
+    }
+  },
+
   // 3. Sincronizar 1 receta individual al crear o editar
   syncRecipe: async (r) => {
     if (!supabase) return;
@@ -115,6 +272,14 @@ export const supabaseService = {
       stats.recipes = recCount;
     } catch (e) {
       console.warn("Error descargando recetas:", e.message);
+    }
+
+    // Inventario
+    try {
+      const invCount = await supabaseService.downloadInventory();
+      stats.inventory = invCount;
+    } catch (e) {
+      console.warn("Error descargando inventario:", e.message);
     }
 
     // Clientes
@@ -678,6 +843,34 @@ export const supabaseService = {
       if (globalRecipes.length === 0) {
         const recCount = await supabaseService.downloadRecipes();
         if (recCount > 0) hasChanges = true;
+      }
+
+      // 6. Inventario en vivo (Materia Prima, En Proceso, Producto Terminado)
+      if (globalRawMaterials.length === 0) {
+        const invCount = await supabaseService.downloadInventory();
+        if (invCount > 0) hasChanges = true;
+      } else {
+        const invRow = settings?.find(s => s.key === 'inventory_snapshot');
+        if (invRow && invRow.value) {
+          try {
+            const parsedInv = JSON.parse(invRow.value);
+            if (parsedInv && Array.isArray(parsedInv.rawMaterials) && parsedInv.rawMaterials.length > 0) {
+              if (JSON.stringify(globalRawMaterials) !== JSON.stringify(parsedInv.rawMaterials)) {
+                globalRawMaterials.length = 0;
+                globalRawMaterials.push(...parsedInv.rawMaterials);
+                if (Array.isArray(parsedInv.finishedGoods)) {
+                  globalFinishedGoods.length = 0;
+                  globalFinishedGoods.push(...parsedInv.finishedGoods);
+                }
+                if (Array.isArray(parsedInv.wip)) {
+                  globalWip.length = 0;
+                  globalWip.push(...parsedInv.wip);
+                }
+                hasChanges = true;
+              }
+            }
+          } catch (e) {}
+        }
       }
 
       if (hasChanges) {

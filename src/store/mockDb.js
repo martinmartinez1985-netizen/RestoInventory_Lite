@@ -95,6 +95,8 @@ export const updateStock = (id, baseAmountDelta, newBaseCost = null) => {
         }
       }
       item.baseStock += baseAmountDelta;
+      persistData();
+      pushInventoryDebounced();
       return true;
     }
   }
@@ -220,6 +222,45 @@ export const pushMasterPinToCloud = (pin) => {
   }
 };
 
+let inventoryPushTimer = null;
+export const pushInventoryDebounced = () => {
+  if (inventoryPushTimer) clearTimeout(inventoryPushTimer);
+  inventoryPushTimer = setTimeout(() => {
+    pushInventoryToCloud();
+  }, 1000);
+};
+
+export const pushInventoryToCloud = () => {
+  if (Platform.OS === 'web') {
+    import('../services/supabaseService').then(({ supabaseService }) => {
+      if (supabaseService && supabaseService.pushInventoryStock) {
+        supabaseService.pushInventoryStock();
+      }
+    }).catch(() => {});
+  }
+};
+
+export const pushRawMaterialToCloud = (item) => {
+  if (Platform.OS === 'web') {
+    import('../services/supabaseService').then(({ supabaseService }) => {
+      if (supabaseService && supabaseService.pushRawMaterial) {
+        supabaseService.pushRawMaterial(item);
+      }
+    }).catch(() => {});
+  }
+};
+
+export const deleteRawMaterialFromCloud = (itemId) => {
+  if (Platform.OS === 'web') {
+    import('../services/supabaseService').then(({ supabaseService }) => {
+      if (supabaseService && supabaseService.deleteRawMaterial) {
+        supabaseService.deleteRawMaterial(itemId);
+      }
+    }).catch(() => {});
+  }
+};
+
+
 export const openShift = (cash = 0) => {
   globalShift.isOpen = true;
   globalShift.openingCash = Number(cash) || 0;
@@ -313,6 +354,8 @@ export const addRawMaterial = (ing) => {
   };
   globalRawMaterials.push(item);
   persistData();
+  pushRawMaterialToCloud(item);
+  pushInventoryDebounced();
   return item;
 };
 
@@ -321,6 +364,8 @@ export const updateRawMaterial = (id, updatedFields) => {
   if (item) {
     Object.assign(item, updatedFields);
     persistData();
+    pushRawMaterialToCloud(item);
+    pushInventoryDebounced();
     return item;
   }
   return null;
@@ -331,6 +376,8 @@ export const deleteRawMaterial = (id) => {
   if (idx !== -1) {
     globalRawMaterials.splice(idx, 1);
     persistData();
+    deleteRawMaterialFromCloud(id);
+    pushInventoryDebounced();
     return true;
   }
   return false;
@@ -373,6 +420,7 @@ export const addFinishedGood = (item, recipeInfo = {}) => {
   }
 
   persistData();
+  pushInventoryDebounced();
   return newItem;
 };
 
@@ -396,6 +444,7 @@ export const updateFinishedGood = (id, updatedFields, recipeUpdates = {}) => {
     }
 
     persistData();
+    pushInventoryDebounced();
     return item;
   }
   return null;
@@ -413,6 +462,7 @@ export const deleteFinishedGood = (id) => {
     }
 
     persistData();
+    pushInventoryDebounced();
     return true;
   }
   return false;

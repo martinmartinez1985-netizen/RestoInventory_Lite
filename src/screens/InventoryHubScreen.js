@@ -1,6 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, FlatList, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, FlatList, Platform, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { globalRawMaterials } from '../store/mockDb';
 
 const inventoryTypes = [
   { id: '1', title: 'Materia Prima', subtitle: 'Ingredientes básicos sin procesar', icon: 'leaf', color: '#10b981', route: 'RawMaterials' },
@@ -10,6 +11,50 @@ const inventoryTypes = [
 ];
 
 export default function InventoryHubScreen({ navigation }) {
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleCloudSync = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const { supabaseService } = await import('../services/supabaseService');
+      if (!supabaseService) throw new Error("Servicio de sincronización no disponible.");
+
+      if (globalRawMaterials.length === 0) {
+        const count = await supabaseService.downloadInventory();
+        const msg = `Se descargaron ${count} insumo(s) exitosamente desde la nube.`;
+        if (Platform.OS === 'web') window.alert(msg);
+        else Alert.alert("Sincronización Exitosa", msg);
+      } else {
+        let shouldUpload = true;
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          shouldUpload = window.confirm(
+            "¿Deseas SUBIR el inventario actual a la nube para compartirlo con otros dispositivos?\n\n- ACEPTAR: Sube tus materias primas y productos a Supabase.\n- CANCELAR: Descarga y sincroniza desde la nube."
+          );
+        }
+
+        if (shouldUpload) {
+          const count = await supabaseService.uploadInventory();
+          const msg = `¡Inventario subido a la nube! ${count} insumo(s) sincronizados para todos los dispositivos.`;
+          if (Platform.OS === 'web') window.alert(msg);
+          else Alert.alert("Nube Actualizada", msg);
+        } else {
+          const count = await supabaseService.downloadInventory();
+          const msg = `Se descargaron ${count} insumo(s) desde la nube.`;
+          if (Platform.OS === 'web') window.alert(msg);
+          else Alert.alert("Descarga Exitosa", msg);
+        }
+      }
+    } catch (err) {
+      console.error("Error sincronizando inventario:", err);
+      const errMsg = "Error al sincronizar con la nube: " + (err.message || err);
+      if (Platform.OS === 'web') window.alert(errMsg);
+      else Alert.alert("Error", errMsg);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const renderItem = ({ item }) => (
     <TouchableOpacity style={styles.card} onPress={() => navigation.navigate(item.route)}>
       <View style={[styles.iconBox, { backgroundColor: item.color + '20' }]}>
@@ -30,9 +75,19 @@ export default function InventoryHubScreen({ navigation }) {
               <Text style={styles.backBtnText}>Volver al Dashboard</Text>
             </View>
           </TouchableOpacity>
-          <View style={{marginTop: 20}}>
-            <Text style={styles.pageTitle}>Centro de Inventarios</Text>
-            <Text style={styles.pageSubtitle}>Gestión de stock por etapas de producción</Text>
+          <View style={{marginTop: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12}}>
+            <View>
+              <Text style={styles.pageTitle}>Centro de Inventarios</Text>
+              <Text style={styles.pageSubtitle}>Gestión de stock por etapas de producción</Text>
+            </View>
+            <TouchableOpacity 
+              style={[styles.syncCloudBtn, isSyncing && { opacity: 0.7 }]} 
+              onPress={handleCloudSync}
+              disabled={isSyncing}
+            >
+              <MaterialCommunityIcons name={isSyncing ? "cloud-sync-outline" : "cloud-sync"} size={20} color="#fff" />
+              <Text style={styles.syncCloudBtnTxt}>{isSyncing ? 'Sincronizando...' : 'Sincronizar Inventario en la Nube'}</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -58,8 +113,11 @@ const styles = StyleSheet.create({
   backBtnText: { marginLeft: 4, fontSize: 13, fontWeight: '600', color: '#475569' },
   pageTitle: { fontSize: 26, fontWeight: 'bold', color: '#1e293b' },
   pageSubtitle: { fontSize: 14, color: '#64748b', marginTop: 4 },
+  syncCloudBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0284c7', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, gap: 8, ...Platform.select({ web: { boxShadow: '0px 2px 8px rgba(2,132,199,0.3)', cursor: 'pointer' } }) },
+  syncCloudBtnTxt: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
   card: { flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 30, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'flex-start', minWidth: 250, ...Platform.select({ web: { boxShadow: '0px 4px 15px rgba(0,0,0,0.03)' } }) },
   iconBox: { width: 60, height: 60, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#1e293b', marginBottom: 8 },
   cardSubtitle: { fontSize: 13, color: '#64748b', lineHeight: 20 }
 });
+
