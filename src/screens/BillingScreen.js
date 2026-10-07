@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { globalTables, globalActiveOrders, createOrder, persistData, pushTableToCloud } from '../store/mockDb';
+import { globalTables, globalActiveOrders, createOrder, persistData, pushTableToCloud, globalRecipes, updateStock } from '../store/mockDb';
 
 export default function BillingScreen({ navigation }) {
   const { width } = useWindowDimensions();
-  const isMobile = width < 600;
+  const isMobile = width < 680;
+  const isTablet = width >= 680 && width < 1050;
   const [activeTab, setActiveTab] = useState('dine_in');
   const [refresh, setRefresh] = useState(0);
 
@@ -82,11 +83,58 @@ export default function BillingScreen({ navigation }) {
     navigation.navigate('PosOrdering', { orderId: order.id });
   };
 
+  const handleCancelDirectOrder = async (orderToCancel) => {
+    const confirmCancel = typeof window !== 'undefined' ? window.confirm(
+      `⚠️ ¿ESTÁS SEGURO DE ANULAR ESTE PEDIDO (${orderToCancel.id})?\n\n` +
+      `• Cliente: ${orderToCancel.customerName || 'Cliente General'}\n` +
+      `• Total: $${Number(orderToCancel.total || 0).toFixed(2)}\n\n` +
+      `Esta acción devolverá los ingredientes al almacén (si ya estaban en cocina) y eliminará el pedido.`
+    ) : false;
+
+    if (!confirmCancel) return;
+
+    try {
+      if (orderToCancel.items && Array.isArray(orderToCancel.items)) {
+        orderToCancel.items.forEach(item => {
+          const sentCount = item.sentQty || (item.sentToKitchen ? item.qty : 0);
+          if (sentCount > 0) {
+            const recipe = globalRecipes.find(r => (item.recipeId && r.id === item.recipeId) || r.name === item.name);
+            if (recipe && recipe.ingredients) {
+              recipe.ingredients.forEach(ing => {
+                updateStock(ing.id, ing.amount * sentCount);
+              });
+            }
+          }
+        });
+      }
+
+      const idx = globalActiveOrders.findIndex(o => o.id === orderToCancel.id);
+      if (idx !== -1) {
+        globalActiveOrders.splice(idx, 1);
+      }
+
+      try {
+        const { supabase } = await import('../config/supabase');
+        if (supabase) {
+          await supabase.from('orders').delete().eq('id', orderToCancel.id);
+        }
+      } catch (e) {
+        console.warn("Error eliminando pedido en Supabase:", e.message);
+      }
+
+      persistData();
+      setRefresh(r => r + 1);
+      alert(`Pedido ${orderToCancel.id} anulado y eliminado.`);
+    } catch (err) {
+      alert("Error al anular pedido: " + err.message);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={[styles.container, isMobile && { paddingHorizontal: 15, paddingTop: 15 }]}>
+      <View style={[styles.container, (isMobile || isTablet) && { paddingHorizontal: 15, paddingTop: 15 }]}>
         
-        <View style={[styles.header, isMobile && { marginBottom: 15 }]}>
+        <View style={[styles.header, (isMobile || isTablet) && { marginBottom: 15 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <TouchableOpacity onPress={() => navigation.navigate('Dashboard')} style={{marginRight: 10}}>
               <Image source={require('../../assets/logo.png')} style={{width: isMobile ? 90 : 120, height: isMobile ? 30 : 40, resizeMode: 'contain'}} />
@@ -107,7 +155,7 @@ export default function BillingScreen({ navigation }) {
         </View>
 
         {/* TABS */}
-        <View style={[styles.tabsContainer, isMobile && { marginBottom: 15, padding: 3 }]}>
+        <View style={[styles.tabsContainer, (isMobile || isTablet) && { marginBottom: 15, padding: 3 }]}>
           <TouchableOpacity 
             style={[styles.tab, activeTab === 'dine_in' && styles.tabActive, isMobile && { paddingVertical: 8 }]}
             onPress={() => setActiveTab('dine_in')}
@@ -136,7 +184,7 @@ export default function BillingScreen({ navigation }) {
         {/* CONTENT */}
         <ScrollView contentContainerStyle={styles.content}>
           {activeTab === 'dine_in' && (
-            <View style={[styles.grid, isMobile && { gap: 12 }]}>
+            <View style={[styles.grid, (isMobile || isTablet) && { gap: 12 }]}>
               {globalTables.map(table => {
                 const effectiveStatus = getTableStatus(table);
                 return (
@@ -145,6 +193,7 @@ export default function BillingScreen({ navigation }) {
                     style={[
                       styles.tableCard,
                       isMobile && { width: (width - 42) / 2, height: 125, padding: 10 },
+                      isTablet && { width: (width - 80) / 4, height: 130, padding: 10 },
                       effectiveStatus === 'occupied' && styles.tableCardOccupied,
                       effectiveStatus === 'billed' && styles.tableCardBilled
                     ]}
@@ -189,17 +238,29 @@ export default function BillingScreen({ navigation }) {
               
               <Text style={{marginTop: 30, fontSize: 16, fontWeight: 'bold', color: '#1e293b'}}>Órdenes Activas ({activeTab}):</Text>
               {globalActiveOrders.filter(o => o.type === activeTab && o.status !== 'paid').map(order => (
-                <TouchableOpacity 
+                <View 
                   key={order.id} 
                   style={styles.activeOrderCard}
-                  onPress={() => navigation.navigate('PosOrdering', { orderId: order.id })}
                 >
-                  <View>
+                  <TouchableOpacity 
+                    style={{ flex: 1 }}
+                    onPress={() => navigation.navigate('PosOrdering', { orderId: order.id })}
+                  >
                     <Text style={{fontWeight: 'bold', fontSize: 16, color: '#1e293b'}}>{order.customerName}</Text>
                     <Text style={{color: '#64748b', fontSize: 13}}>Orden: {order.id}</Text>
+                  </TouchableOpacity>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <Text style={{fontWeight: 'bold', fontSize: 16, color: '#10b981'}}>$ {Number(order.total || 0).toFixed(2)}</Text>
+                    <TouchableOpacity 
+                      style={{ backgroundColor: '#fee2e2', padding: 8, borderRadius: 8, borderWidth: 1, borderColor: '#fca5a5' }}
+                      onPress={() => handleCancelDirectOrder(order)}
+                      title="Anular Pedido"
+                    >
+                      <MaterialCommunityIcons name="trash-can-outline" size={18} color="#ef4444" />
+                    </TouchableOpacity>
                   </View>
-                  <Text style={{fontWeight: 'bold', fontSize: 16, color: '#10b981'}}>$ {order.total.toFixed(2)}</Text>
-                </TouchableOpacity>
+                </View>
               ))}
             </View>
           )}

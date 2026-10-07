@@ -17,7 +17,9 @@ const COLORS = {
 
 export default function PosOrderingScreen({ route, navigation }) {
   const { width } = useWindowDimensions();
-  const isMobile = width < 850;
+  const isMobile = width < 680;
+  const isTablet = width >= 680 && width < 1050;
+  const isDesktop = width >= 1050;
   const [mobilePosTab, setMobilePosTab] = useState('menu'); // 'menu' | 'ticket'
   const { orderId } = route.params;
   const [order, setOrder] = useState(null);
@@ -413,6 +415,61 @@ export default function PosOrderingScreen({ route, navigation }) {
     try { pushOrderToCloud(order); } catch (e) {}
   };
 
+  const handleCancelActiveOrder = async () => {
+    const confirmCancel = typeof window !== 'undefined' ? window.confirm(
+      `⚠️ ¿ESTÁS SEGURO DE ANULAR ESTA COMANDA COMPLETA (${order.id})?\n\n` +
+      `Esta acción:\n` +
+      `1. Devolverá al almacén los ingredientes de los platos ya enviados a cocina.\n` +
+      `2. Liberará la mesa (si aplica).\n` +
+      `3. Eliminará la comanda del sistema y de la nube.`
+    ) : false;
+
+    if (!confirmCancel) return;
+
+    try {
+      // 1. Devolver ingredientes de todos los ítems enviados a cocina
+      if (order.items && Array.isArray(order.items)) {
+        order.items.forEach(item => {
+          const sentCount = item.sentQty || (item.sentToKitchen ? item.qty : 0);
+          if (sentCount > 0) {
+            reverseInventory(item.recipeId || item.name, sentCount);
+          }
+        });
+      }
+
+      // 2. Liberar mesa si es dine_in
+      if (order.type === 'dine_in' && order.tableId) {
+        const t = globalTables.find(tbl => tbl.id === order.tableId);
+        if (t) {
+          t.status = 'free';
+          pushTableToCloud(t);
+        }
+      }
+
+      // 3. Eliminar de globalActiveOrders
+      const idx = globalActiveOrders.findIndex(o => o.id === order.id);
+      if (idx !== -1) {
+        globalActiveOrders.splice(idx, 1);
+      }
+
+      // 4. Eliminar de Supabase Cloud
+      try {
+        const { supabase } = await import('../config/supabase');
+        if (supabase) {
+          await supabase.from('orders').delete().eq('id', order.id);
+        }
+      } catch (e) {
+        console.warn("Error eliminando comanda en Supabase:", e.message);
+      }
+
+      persistData();
+      alert(`Comanda ${order.id} anulada y eliminada.`);
+      navigation.goBack();
+    } catch (err) {
+      alert("Error al anular la comanda: " + err.message);
+    }
+  };
+
   const handlePay = () => {
     if (order.items.some(i => !i.sentToKitchen)) {
       alert("Envíe primero todos los ítems a la cocina para descontar el stock.");
@@ -526,7 +583,7 @@ export default function PosOrderingScreen({ route, navigation }) {
       <View style={[styles.container, isMobile && { flexDirection: 'column' }]}>
         
         {/* Lado Izquierdo: Sidebar Navegación (solo desktop) */}
-        {!isMobile && (
+        {isDesktop && (
           <View style={styles.sidebar}>
             <View style={styles.logoBox}>
               <MaterialCommunityIcons name="storefront" size={28} color={COLORS.primary} />
@@ -546,34 +603,45 @@ export default function PosOrderingScreen({ route, navigation }) {
 
         {/* Centro: Catalogo de Menu */}
         {(!isMobile || mobilePosTab === 'menu') && (
-          <View style={[styles.mainContent, isMobile && { padding: 12 }]}>
+          <View style={[styles.mainContent, isMobile && { padding: 12 }, isTablet && { padding: 14 }]}>
             {/* Header Superior */}
-            <View style={[styles.header, isMobile && { marginBottom: 12 }]}>
-              <View>
-                <Text style={styles.dateText}>{new Date().toLocaleDateString('es-ES', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
+            <View style={[styles.header, (isMobile || isTablet) && { marginBottom: 12 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                {isTablet && (
+                  <TouchableOpacity 
+                    onPress={handleExitPos} 
+                    style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, marginRight: 12, borderWidth: 1, borderColor: COLORS.border }}
+                  >
+                    <MaterialCommunityIcons name="arrow-left" size={16} color={COLORS.primary} />
+                    <Text style={{ color: COLORS.text, fontSize: 13, fontWeight: 'bold', marginLeft: 4 }}>Mesas</Text>
+                  </TouchableOpacity>
+                )}
+                <View>
+                  <Text style={styles.dateText}>{new Date().toLocaleDateString('es-ES', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
+                </View>
               </View>
 
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 {/* Botón Sincronizar Menú con Nube */}
                 <TouchableOpacity 
-                  style={[styles.cloudSyncBtn, isMobile && { paddingHorizontal: 8, height: 38 }, isSyncingMenu && { opacity: 0.6 }]} 
+                  style={[styles.cloudSyncBtn, (isMobile || isTablet) && { paddingHorizontal: 8, height: 38 }, isSyncingMenu && { opacity: 0.6 }]} 
                   onPress={handleCloudMenuSync}
                   disabled={isSyncingMenu}
                 >
                   <MaterialCommunityIcons 
                     name={isSyncingMenu ? "cloud-sync" : "cloud-sync-outline"} 
-                    size={isMobile ? 16 : 18} 
+                    size={(isMobile || isTablet) ? 16 : 18} 
                     color="#38bdf8" 
                   />
-                  <Text style={[styles.cloudSyncBtnText, isMobile && { fontSize: 11 }]}>
+                  <Text style={[styles.cloudSyncBtnText, (isMobile || isTablet) && { fontSize: 11 }]}>
                     {isSyncingMenu ? "Sincronizando..." : (isMobile ? "Nube" : "Sincronizar Menú")}
                   </Text>
                 </TouchableOpacity>
 
-                <View style={[styles.searchBox, isMobile && { width: 140, height: 38 }]}>
+                <View style={[styles.searchBox, isMobile && { width: 140, height: 38 }, isTablet && { width: 170, height: 38 }]}>
                   <MaterialCommunityIcons name="magnify" size={18} color={COLORS.textMuted} />
                   <TextInput 
-                    style={[styles.searchInput, isMobile && { fontSize: 12 }]} 
+                    style={[styles.searchInput, (isMobile || isTablet) && { fontSize: 12 }]} 
                     placeholder="Buscar menu..." 
                     placeholderTextColor={COLORS.textMuted}
                     value={menuSearchQuery}
@@ -593,10 +661,10 @@ export default function PosOrderingScreen({ route, navigation }) {
               {categoriesList.map(cat => (
                 <TouchableOpacity 
                   key={cat} 
-                  style={[styles.catBadge, isMobile && { paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 }, activeCategory === cat && styles.catBadgeActive]}
+                  style={[styles.catBadge, (isMobile || isTablet) && { paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 }, activeCategory === cat && styles.catBadgeActive]}
                   onPress={() => setActiveCategory(cat)}
                 >
-                  <Text style={[styles.catText, isMobile && { fontSize: 12 }, activeCategory === cat && {color: '#fff'}]}>{cat}</Text>
+                  <Text style={[styles.catText, (isMobile || isTablet) && { fontSize: 12 }, activeCategory === cat && {color: '#fff'}]}>{cat}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -604,20 +672,33 @@ export default function PosOrderingScreen({ route, navigation }) {
             {/* Grid de Productos */}
             <ScrollView style={styles.gridScroll}>
               {filteredRecipes.length > 0 ? (
-                <View style={[styles.grid, isMobile && { gap: 10 }]}>
-                  {filteredRecipes.map((recipe, i) => (
-                    <TouchableOpacity 
-                      key={recipe.id || i} 
-                      style={[styles.menuCard, isMobile && { width: (width - 34) / 2 }]} 
-                      onPress={() => addItem(recipe)}
-                    >
-                      <Image source={{uri: recipe.image || 'https://via.placeholder.com/150'}} style={[styles.cardImage, isMobile && { height: 100 }]} />
-                      <View style={[styles.cardInfo, isMobile && { padding: 8 }]}>
-                        <Text style={[styles.cardTitle, isMobile && { fontSize: 12, marginBottom: 4 }]} numberOfLines={1}>{recipe.name}</Text>
-                        <Text style={[styles.cardPrice, isMobile && { fontSize: 14 }]}>${formatMoney(recipe.salePrice || recipe.price || 15.99)}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
+                <View style={[styles.grid, (isMobile || isTablet) && { gap: 10 }]}>
+                  {filteredRecipes.map((recipe, i) => {
+                    let cardWidth = 175;
+                    let cardImgHeight = 130;
+                    if (isMobile) {
+                      cardWidth = (width - 34) / 2;
+                      cardImgHeight = 100;
+                    } else if (isTablet) {
+                      const availableMenuWidth = width - 300 - 28;
+                      const cols = availableMenuWidth > 540 ? 4 : 3;
+                      cardWidth = Math.floor((availableMenuWidth - ((cols - 1) * 10) - 10) / cols);
+                      cardImgHeight = 105;
+                    }
+                    return (
+                      <TouchableOpacity 
+                        key={recipe.id || i} 
+                        style={[styles.menuCard, { width: cardWidth }]} 
+                        onPress={() => addItem(recipe)}
+                      >
+                        <Image source={{uri: recipe.image || 'https://via.placeholder.com/150'}} style={[styles.cardImage, { height: cardImgHeight }]} />
+                        <View style={[styles.cardInfo, (isMobile || isTablet) && { padding: 8 }]}>
+                          <Text style={[styles.cardTitle, (isMobile || isTablet) && { fontSize: 12, marginBottom: 4 }]} numberOfLines={1}>{recipe.name}</Text>
+                          <Text style={[styles.cardPrice, (isMobile || isTablet) && { fontSize: 14 }]}>${formatMoney(recipe.salePrice || recipe.price || 15.99)}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               ) : (
                 <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 45, width: '100%', paddingHorizontal: 20 }}>
@@ -695,13 +776,41 @@ export default function PosOrderingScreen({ route, navigation }) {
 
         {/* Lado Derecho: Ticket / Orden */}
         {(!isMobile || mobilePosTab === 'ticket') && (
-          <View style={[styles.ticketPanel, isMobile && { width: '100%', flex: 1, borderLeftWidth: 0, padding: 14 }]}>
-            <Text style={styles.ticketTitle}>
-              {order.type === 'dine_in' ? `Orden - Mesa ${order.tableId.replace('T', '')}` : `Orden: ${order.type}`}
-            </Text>
-            <Text style={styles.ticketSub}>ID: {order.id}</Text>
+          <View style={[
+            styles.ticketPanel, 
+            isMobile && { width: '100%', flex: 1, borderLeftWidth: 0, padding: 14 },
+            isTablet && { width: 300, padding: 14 }
+          ]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.ticketTitle, isTablet && { fontSize: 18 }]}>
+                  {order.type === 'dine_in' ? `Orden - Mesa ${order.tableId.replace('T', '')}` : `Orden: ${order.type}`}
+                </Text>
+                <Text style={[styles.ticketSub, { marginBottom: 0 }]}>ID: {order.id}</Text>
+              </View>
 
-            <View style={{flexDirection: 'row', gap: 10, marginTop: 10, marginBottom: 15}}>
+              {/* Botón Anular Comanda Completa */}
+              <TouchableOpacity 
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: '#fee2e2',
+                  borderWidth: 1,
+                  borderColor: '#fca5a5',
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: 8,
+                  gap: 4
+                }}
+                onPress={handleCancelActiveOrder}
+                title="Anular y Eliminar Comanda"
+              >
+                <MaterialCommunityIcons name="trash-can-outline" size={15} color="#ef4444" />
+                <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: 'bold' }}>Anular</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{flexDirection: 'row', gap: 10, marginTop: 4, marginBottom: 15}}>
               <TouchableOpacity 
                 style={{flex: 1, backgroundColor: '#1f1f2b', borderRadius: 6, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center'}}
                 onPress={() => setIsClientModalVisible(true)}

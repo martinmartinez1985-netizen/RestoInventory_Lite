@@ -12,7 +12,7 @@ import {
   useWindowDimensions
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { globalOrderHistory, globalSettings } from '../store/mockDb';
+import { globalOrderHistory, globalSettings, globalShift, pushShiftToCloud, globalRecipes, updateStock, persistData } from '../store/mockDb';
 import TicketModal from '../components/TicketModal';
 
 const COLORS = {
@@ -69,6 +69,82 @@ export default function DailySalesScreen({ navigation }) {
   // Filtro de búsqueda en auditoría
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMethod, setFilterMethod] = useState('ALL');
+
+  const handleVoidInvoice = async (orderToVoid) => {
+    const confirmVoid = typeof window !== 'undefined' ? window.confirm(
+      `⚠️ ¿ESTÁS SEGURO DE ANULAR ESTA FACTURA (${orderToVoid.id})?\n\n` +
+      `• Monto: $${formatMoney(orderToVoid.total)}\n` +
+      `• Cliente: ${orderToVoid.customerName || 'Cliente General'}\n\n` +
+      `Esta acción:\n` +
+      `1. Restará el monto de las ventas del día y del turno actual.\n` +
+      `2. Devolverá los ingredientes de los platos al almacén.\n` +
+      `3. Eliminará la factura del historial de ventas y de la nube.`
+    ) : false;
+
+    if (!confirmVoid) return;
+
+    try {
+      // 1. Devolver ingredientes al almacén
+      if (orderToVoid.items && Array.isArray(orderToVoid.items)) {
+        orderToVoid.items.forEach(item => {
+          const qty = Number(item.qty || 1);
+          const recipe = globalRecipes.find(r => (item.recipeId && r.id === item.recipeId) || r.name === item.name);
+          if (recipe && recipe.ingredients) {
+            recipe.ingredients.forEach(ing => {
+              updateStock(ing.id, ing.amount * qty);
+            });
+          }
+        });
+      }
+
+      // 2. Revertir monto de las ventas del turno actual si está abierto
+      if (globalShift && globalShift.sales) {
+        const pay = orderToVoid.payment || {};
+        const curr = pay.currency || 'USD';
+        const meth = pay.method || 'Efectivo';
+        const amt = Number(pay.amount || orderToVoid.total || 0);
+
+        if (curr === 'USD') {
+          if (meth === 'Efectivo' && globalShift.sales.usdCash !== undefined) {
+            globalShift.sales.usdCash = Math.max(0, globalShift.sales.usdCash - amt);
+          } else if (globalShift.sales.usdDigital !== undefined) {
+            globalShift.sales.usdDigital = Math.max(0, globalShift.sales.usdDigital - amt);
+          }
+        } else if (curr === 'VES') {
+          if (meth === 'Efectivo' && globalShift.sales.bsCash !== undefined) {
+            globalShift.sales.bsCash = Math.max(0, globalShift.sales.bsCash - amt);
+          } else if (globalShift.sales.bsDigital !== undefined) {
+            globalShift.sales.bsDigital = Math.max(0, globalShift.sales.bsDigital - amt);
+          }
+        } else if (curr === 'CxC' && globalShift.sales.cxc !== undefined) {
+          globalShift.sales.cxc = Math.max(0, globalShift.sales.cxc - amt);
+        }
+        pushShiftToCloud();
+      }
+
+      // 3. Remover de globalOrderHistory
+      const histIdx = globalOrderHistory.findIndex(o => o.id === orderToVoid.id);
+      if (histIdx !== -1) {
+        globalOrderHistory.splice(histIdx, 1);
+      }
+
+      // 4. Eliminar de Supabase Cloud
+      try {
+        const { supabase } = await import('../config/supabase');
+        if (supabase) {
+          await supabase.from('orders').delete().eq('id', orderToVoid.id);
+        }
+      } catch (e) {
+        console.warn("Error eliminando factura en Supabase:", e.message);
+      }
+
+      persistData();
+      setLiveTick(t => t + 1);
+      alert(`Factura ${orderToVoid.id} anulada y eliminada exitosamente.`);
+    } catch (err) {
+      alert("Error al anular factura: " + err.message);
+    }
+  };
 
   // Presets de fechas
   const applyPreset = (preset) => {
@@ -603,6 +679,16 @@ export default function DailySalesScreen({ navigation }) {
                             >
                               <MaterialCommunityIcons name="printer" size={16} color="#0284c7" />
                               <Text style={styles.reprintText}>Ticket</Text>
+                            </TouchableOpacity>
+
+                            {/* Botón Anular Factura */}
+                            <TouchableOpacity 
+                              style={[styles.reprintBtn, { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }]}
+                              onPress={() => handleVoidInvoice(order)}
+                              title="Anular y Eliminar Factura"
+                            >
+                              <MaterialCommunityIcons name="trash-can-outline" size={16} color="#ef4444" />
+                              <Text style={[styles.reprintText, { color: '#ef4444' }]}>Anular</Text>
                             </TouchableOpacity>
                           </View>
                         </View>
