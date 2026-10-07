@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { globalTables, globalActiveOrders, createOrder, persistData, pushTableToCloud, globalRecipes, updateStock } from '../store/mockDb';
+import { globalTables, globalActiveOrders, createOrder, persistData, pushTableToCloud, globalRecipes, updateStock, deleteOrderFromCloud } from '../store/mockDb';
 
 export default function BillingScreen({ navigation }) {
   const { width } = useWindowDimensions();
@@ -108,22 +108,18 @@ export default function BillingScreen({ navigation }) {
         });
       }
 
-      const idx = globalActiveOrders.findIndex(o => o.id === orderToCancel.id);
-      if (idx !== -1) {
-        globalActiveOrders.splice(idx, 1);
-      }
-
-      try {
-        const { supabase } = await import('../config/supabase');
-        if (supabase) {
-          await supabase.from('orders').delete().eq('id', orderToCancel.id);
+      for (let i = globalActiveOrders.length - 1; i >= 0; i--) {
+        if (globalActiveOrders[i].id === orderToCancel.id) {
+          globalActiveOrders.splice(i, 1);
         }
-      } catch (e) {
-        console.warn("Error eliminando pedido en Supabase:", e.message);
       }
 
+      deleteOrderFromCloud(orderToCancel.id);
       persistData();
       setRefresh(r => r + 1);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('RESTOSYS_DATA_SYNCED'));
+      }
       alert(`Pedido ${orderToCancel.id} anulado y eliminado.`);
     } catch (err) {
       alert("Error al anular pedido: " + err.message);

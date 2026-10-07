@@ -110,20 +110,30 @@ export class SimpleSupabaseClient {
         }
       },
 
-      delete: async (matchField, matchValue) => {
-        try {
-          const res = await fetch(`${self.url}/rest/v1/${table}?${encodeURIComponent(matchField)}=eq.${encodeURIComponent(matchValue)}`, {
-            method: 'DELETE',
-            headers: self.getHeaders()
-          });
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({ message: res.statusText }));
-            return { error: err };
+      delete: (matchField, matchValue) => {
+        const doDelete = async (field, val) => {
+          try {
+            const res = await fetch(`${self.url}/rest/v1/${table}?${encodeURIComponent(field)}=eq.${encodeURIComponent(val)}`, {
+              method: 'DELETE',
+              headers: self.getHeaders()
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({ message: res.statusText }));
+              return { error: err };
+            }
+            return { error: null };
+          } catch (err) {
+            return { error: { message: err.message } };
           }
-          return { error: null };
-        } catch (err) {
-          return { error: { message: err.message } };
+        };
+
+        if (matchField !== undefined && matchValue !== undefined) {
+          return doDelete(matchField, matchValue);
         }
+
+        return {
+          eq: async (field, val) => doDelete(field, val)
+        };
       }
     };
   }

@@ -162,6 +162,16 @@ export const pushOrderToCloud = (order) => {
   }
 };
 
+export const deleteOrderFromCloud = (orderId) => {
+  if (Platform.OS === 'web') {
+    import('../config/supabase').then(({ supabase }) => {
+      if (supabase) {
+        supabase.from('orders').delete('id', orderId);
+      }
+    }).catch(() => {});
+  }
+};
+
 export const pushTableToCloud = (table) => {
   if (Platform.OS === 'web') {
     import('../services/supabaseService').then(({ supabaseService }) => {

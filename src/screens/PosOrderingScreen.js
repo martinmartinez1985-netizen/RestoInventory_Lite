@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform, TextInput, Image, useWindowDimensions, Modal } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import TicketModal from '../components/TicketModal';
-import { globalActiveOrders, globalRecipes, processProductionBatch, updateStock, registerShiftSale, globalTables, globalSettings, updateExchangeRate, globalDirectory, addContactToGlobal, recordCompletedOrder, globalOrderHistory, pushOrderToCloud, pushTableToCloud, persistData } from '../store/mockDb';
+import { globalActiveOrders, globalRecipes, processProductionBatch, updateStock, registerShiftSale, globalTables, globalSettings, updateExchangeRate, globalDirectory, addContactToGlobal, recordCompletedOrder, globalOrderHistory, pushOrderToCloud, pushTableToCloud, persistData, deleteOrderFromCloud } from '../store/mockDb';
 
 // Paleta de colores Dark Theme
 const COLORS = {
@@ -447,22 +447,19 @@ export default function PosOrderingScreen({ route, navigation }) {
       }
 
       // 3. Eliminar de globalActiveOrders
-      const idx = globalActiveOrders.findIndex(o => o.id === order.id);
-      if (idx !== -1) {
-        globalActiveOrders.splice(idx, 1);
+      for (let i = globalActiveOrders.length - 1; i >= 0; i--) {
+        if (globalActiveOrders[i].id === order.id) {
+          globalActiveOrders.splice(i, 1);
+        }
       }
 
       // 4. Eliminar de Supabase Cloud
-      try {
-        const { supabase } = await import('../config/supabase');
-        if (supabase) {
-          await supabase.from('orders').delete().eq('id', order.id);
-        }
-      } catch (e) {
-        console.warn("Error eliminando comanda en Supabase:", e.message);
-      }
+      deleteOrderFromCloud(order.id);
 
       persistData();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('RESTOSYS_DATA_SYNCED'));
+      }
       alert(`Comanda ${order.id} anulada y eliminada.`);
       navigation.goBack();
     } catch (err) {

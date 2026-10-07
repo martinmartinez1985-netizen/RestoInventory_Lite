@@ -12,7 +12,7 @@ import {
   useWindowDimensions
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { globalOrderHistory, globalSettings, globalShift, pushShiftToCloud, globalRecipes, updateStock, persistData } from '../store/mockDb';
+import { globalOrderHistory, globalSettings, globalShift, pushShiftToCloud, globalRecipes, updateStock, persistData, deleteOrderFromCloud } from '../store/mockDb';
 import TicketModal from '../components/TicketModal';
 
 const COLORS = {
@@ -123,22 +123,19 @@ export default function DailySalesScreen({ navigation }) {
       }
 
       // 3. Remover de globalOrderHistory
-      const histIdx = globalOrderHistory.findIndex(o => o.id === orderToVoid.id);
-      if (histIdx !== -1) {
-        globalOrderHistory.splice(histIdx, 1);
+      for (let i = globalOrderHistory.length - 1; i >= 0; i--) {
+        if (globalOrderHistory[i].id === orderToVoid.id) {
+          globalOrderHistory.splice(i, 1);
+        }
       }
 
       // 4. Eliminar de Supabase Cloud
-      try {
-        const { supabase } = await import('../config/supabase');
-        if (supabase) {
-          await supabase.from('orders').delete().eq('id', orderToVoid.id);
-        }
-      } catch (e) {
-        console.warn("Error eliminando factura en Supabase:", e.message);
-      }
+      deleteOrderFromCloud(orderToVoid.id);
 
       persistData();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('RESTOSYS_DATA_SYNCED'));
+      }
       setLiveTick(t => t + 1);
       alert(`Factura ${orderToVoid.id} anulada y eliminada exitosamente.`);
     } catch (err) {
