@@ -6,6 +6,7 @@ import {
   globalFinishedGoods,
   globalTables, 
   globalUsers, 
+  globalMasterConfig,
   globalActiveOrders,
   globalOrderHistory, 
   globalShift,
@@ -154,6 +155,22 @@ export const supabaseService = {
             window.dispatchEvent(new CustomEvent('RESTOSYS_RATE_CHANGED', { detail: cloudRate }));
           }
         }
+
+        const masterRow = settings.find(s => s.key === 'master_pin');
+        if (masterRow && masterRow.value) {
+          globalMasterConfig.masterPin = masterRow.value.toString().trim();
+        }
+
+        const usersRow = settings.find(s => s.key === 'users_config');
+        if (usersRow && usersRow.value) {
+          try {
+            const parsed = JSON.parse(usersRow.value);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              globalUsers.length = 0;
+              globalUsers.push(...parsed);
+            }
+          } catch (e) {}
+        }
       }
     } catch (e) {}
 
@@ -272,11 +289,21 @@ export const supabaseService = {
       stats.orders = ordersData.length;
     }
 
-    // 7. Subir Configuración
-    await supabase.from('settings').upsert([
-      { key: 'exchange_rate', value: String(globalSettings.exchangeRate || '40.00') },
+    // 7. Subir Configuración y Usuarios
+    const settingsPayload = [
       { key: 'last_sync', value: new Date().toISOString() }
-    ]);
+    ];
+    if (globalSettings.exchangeRate) {
+      settingsPayload.push({ key: 'exchange_rate', value: String(globalSettings.exchangeRate) });
+    }
+    if (globalMasterConfig.masterPin) {
+      settingsPayload.push({ key: 'master_pin', value: String(globalMasterConfig.masterPin) });
+    }
+    if (globalUsers && globalUsers.length > 0) {
+      settingsPayload.push({ key: 'users_config', value: JSON.stringify(globalUsers) });
+    }
+    await supabase.from('settings').upsert(settingsPayload);
+    await supabaseService.pushUsers(globalUsers);
 
     return stats;
   },
@@ -430,6 +457,46 @@ export const supabaseService = {
     }
   },
 
+  pushMasterPin: async (pin) => {
+    if (!supabase) return;
+    try {
+      const p = String(pin).trim();
+      if (!p) return;
+      await supabase.from('settings').upsert([{
+        key: 'master_pin',
+        value: p,
+        updated_at: new Date().toISOString()
+      }], { onConflict: 'key' });
+      console.log("☁️ Clave Maestra sincronizada en Supabase:", p);
+    } catch (e) {
+      console.warn("Error push master pin:", e.message);
+    }
+  },
+
+  pushUsers: async (users) => {
+    if (!supabase || !Array.isArray(users)) return;
+    try {
+      await supabase.from('settings').upsert([{
+        key: 'users_config',
+        value: JSON.stringify(users),
+        updated_at: new Date().toISOString()
+      }], { onConflict: 'key' });
+
+      const rows = users.map(u => ({
+        id: u.id,
+        name: u.name,
+        username: u.username,
+        pin: u.pin,
+        role: u.role || 'cashier',
+        created_at: new Date().toISOString()
+      }));
+      await supabase.from('users').upsert(rows);
+      console.log(`☁️ ${users.length} usuarios y sus claves sincronizados en Supabase.`);
+    } catch (e) {
+      console.warn("Error push users:", e.message);
+    }
+  },
+
   // MOTOR EN VIVO: Consulta periódica de cambios en la nube y actualización de estado
   pullLiveSync: async () => {
     if (!supabase) return false;
@@ -570,6 +637,28 @@ export const supabaseService = {
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('RESTOSYS_RATE_CHANGED', { detail: cloudRate }));
           }
+        }
+
+        // 4b. Clave Maestra
+        const masterRow = settings.find(s => s.key === 'master_pin');
+        if (masterRow && masterRow.value && masterRow.value !== globalMasterConfig.masterPin) {
+          globalMasterConfig.masterPin = masterRow.value.toString().trim();
+          hasChanges = true;
+        }
+
+        // 4c. Usuarios y Claves (PINs)
+        const usersRow = settings.find(s => s.key === 'users_config');
+        if (usersRow && usersRow.value) {
+          try {
+            const parsedUsers = JSON.parse(usersRow.value);
+            if (Array.isArray(parsedUsers) && parsedUsers.length > 0) {
+              if (JSON.stringify(globalUsers) !== JSON.stringify(parsedUsers)) {
+                globalUsers.length = 0;
+                globalUsers.push(...parsedUsers);
+                hasChanges = true;
+              }
+            }
+          } catch (e) {}
         }
       }
 

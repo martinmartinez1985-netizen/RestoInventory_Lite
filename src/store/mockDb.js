@@ -194,6 +194,22 @@ export const pushExchangeRateToCloud = (rate) => {
   }
 };
 
+export const pushUsersToCloud = () => {
+  if (Platform.OS === 'web') {
+    import('../services/supabaseService').then(({ supabaseService }) => {
+      if (supabaseService && supabaseService.pushUsers) supabaseService.pushUsers(globalUsers);
+    }).catch(() => {});
+  }
+};
+
+export const pushMasterPinToCloud = (pin) => {
+  if (Platform.OS === 'web') {
+    import('../services/supabaseService').then(({ supabaseService }) => {
+      if (supabaseService && supabaseService.pushMasterPin) supabaseService.pushMasterPin(pin);
+    }).catch(() => {});
+  }
+};
+
 export const openShift = (cash = 0) => {
   globalShift.isOpen = true;
   globalShift.openingCash = Number(cash) || 0;
@@ -521,6 +537,7 @@ export const addUser = (user) => {
   };
   globalUsers.push(newUser);
   persistData();
+  pushUsersToCloud();
   return newUser;
 };
 
@@ -532,6 +549,7 @@ export const updateUser = (updated) => {
       Object.assign(globalCurrentUser, globalUsers[idx]);
     }
     persistData();
+    pushUsersToCloud();
     return globalUsers[idx];
   }
   return null;
@@ -546,6 +564,7 @@ export const deleteUser = (userId) => {
   if (idx !== -1) {
     globalUsers.splice(idx, 1);
     persistData();
+    pushUsersToCloud();
   }
 };
 
@@ -567,6 +586,7 @@ export const updateMasterPin = (currentPin, newPin) => {
   }
   globalMasterConfig.masterPin = newPin.trim();
   persistData();
+  pushMasterPinToCloud(newPin.trim());
 };
 
 export const RATE_STORAGE_KEY = 'RESTOSYS_EXCHANGE_RATE_V1';
