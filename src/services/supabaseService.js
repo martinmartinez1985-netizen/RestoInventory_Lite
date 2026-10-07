@@ -145,7 +145,14 @@ export const supabaseService = {
       if (settings && settings.length > 0) {
         const rateRow = settings.find(s => s.key === 'exchange_rate');
         if (rateRow && rateRow.value) {
-          globalSettings.exchangeRate = rateRow.value.toString();
+          const cloudRate = rateRow.value.toString().trim();
+          globalSettings.exchangeRate = cloudRate;
+          if (typeof localStorage !== 'undefined') {
+            try { localStorage.setItem('RESTOSYS_EXCHANGE_RATE_V1', cloudRate); } catch (e) {}
+          }
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('RESTOSYS_RATE_CHANGED', { detail: cloudRate }));
+          }
         }
       }
     } catch (e) {}
@@ -408,6 +415,21 @@ export const supabaseService = {
     }
   },
 
+  pushExchangeRate: async (rate) => {
+    if (!supabase) return;
+    try {
+      const r = String(rate).trim();
+      if (!r) return;
+      await supabase.from('settings').upsert([{
+        key: 'exchange_rate',
+        value: r,
+        updated_at: new Date().toISOString()
+      }], { onConflict: 'key' });
+    } catch (e) {
+      console.warn("Error push exchange rate:", e.message);
+    }
+  },
+
   // MOTOR EN VIVO: Consulta periódica de cambios en la nube y actualización de estado
   pullLiveSync: async () => {
     if (!supabase) return false;
@@ -539,8 +561,15 @@ export const supabaseService = {
       if (settings && Array.isArray(settings)) {
         const rateRow = settings.find(s => s.key === 'exchange_rate');
         if (rateRow && rateRow.value && rateRow.value !== globalSettings.exchangeRate) {
-          globalSettings.exchangeRate = rateRow.value.toString();
+          const cloudRate = rateRow.value.toString().trim();
+          globalSettings.exchangeRate = cloudRate;
+          if (typeof localStorage !== 'undefined') {
+            try { localStorage.setItem('RESTOSYS_EXCHANGE_RATE_V1', cloudRate); } catch (e) {}
+          }
           hasChanges = true;
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('RESTOSYS_RATE_CHANGED', { detail: cloudRate }));
+          }
         }
       }
 

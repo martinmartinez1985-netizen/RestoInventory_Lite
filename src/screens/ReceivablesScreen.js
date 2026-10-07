@@ -1,8 +1,8 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Platform, Modal, TextInput } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { globalReceivables, addReceivable, updateReceivable, globalDirectory, globalBanks, updateBankBalance } from '../store/mockDb';
+import { globalReceivables, addReceivable, updateReceivable, globalDirectory, globalBanks, updateBankBalance, globalSettings, updateExchangeRate } from '../store/mockDb';
 
 const MethodButton = ({ method, current, onSelect, icon }) => (
   <TouchableOpacity 
@@ -24,7 +24,18 @@ export default function ReceivablesScreen({ route, navigation }) {
   // Payment Modal State
   const [isPaymentModalVisible, setIsPaymentModalVisible] = useState(false);
   const [paymentConcept, setPaymentConcept] = useState('Abono');
-  const [exchangeRate, setExchangeRate] = useState('38.50');
+  const [exchangeRate, setExchangeRate] = useState(globalSettings.exchangeRate || '');
+
+  useEffect(() => {
+    const onRate = (e) => {
+      const r = e?.detail || globalSettings.exchangeRate;
+      if (r) setExchangeRate(r.toString());
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('RESTOSYS_RATE_CHANGED', onRate);
+      return () => window.removeEventListener('RESTOSYS_RATE_CHANGED', onRate);
+    }
+  }, []);
   const [amountUSD, setAmountUSD] = useState('');
   const [amountBS, setAmountBS] = useState('');
   const [paymentCurrency, setPaymentCurrency] = useState('DIVISAS');
@@ -99,6 +110,7 @@ export default function ReceivablesScreen({ route, navigation }) {
 
   const handleRateChange = (text) => {
     setExchangeRate(text);
+    updateExchangeRate(text);
     const rate = parseFloat(text) || 0;
     const usd = parseFloat(amountUSD) || 0;
     setAmountBS((usd * rate).toFixed(2));

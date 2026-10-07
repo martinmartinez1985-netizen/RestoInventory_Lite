@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TouchableOpacity, View, Text, Platform, Image, TextInput, useWindowDimensions } from 'react-native';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -52,13 +52,30 @@ export default function AppNavigator() {
   const isMobile = width < 768;
   const isSmallMobile = width < 480;
   const [isLocked, setIsLocked] = useState(true);
-  const [rateText, setRateText] = useState(globalSettings.exchangeRate || '40.00');
+  const [rateText, setRateText] = useState(globalSettings.exchangeRate || '');
   const [, setHeaderTick] = useState(0);
   const navigationRef = useNavigationContainerRef();
 
+  useEffect(() => {
+    const onRateChange = (e) => {
+      const current = e?.detail || globalSettings.exchangeRate;
+      if (current !== undefined && current !== null && current !== '') {
+        setRateText(current.toString());
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('RESTOSYS_RATE_CHANGED', onRateChange);
+      window.addEventListener('RESTOSYS_DATA_SYNCED', onRateChange);
+      return () => {
+        window.removeEventListener('RESTOSYS_RATE_CHANGED', onRateChange);
+        window.removeEventListener('RESTOSYS_DATA_SYNCED', onRateChange);
+      };
+    }
+  }, []);
+
   const handleUnlock = (user) => {
     setIsLocked(false);
-    setRateText(globalSettings.exchangeRate || '40.00');
+    setRateText(globalSettings.exchangeRate || '');
     setHeaderTick(t => t + 1);
     if (navigationRef.isReady()) {
       navigationRef.navigate('Dashboard');
@@ -116,7 +133,7 @@ export default function AppNavigator() {
                       updateExchangeRate(val);
                     }}
                     keyboardType="numeric"
-                    placeholder="40.00"
+                    placeholder="0.00"
                   />
                 </View>
 

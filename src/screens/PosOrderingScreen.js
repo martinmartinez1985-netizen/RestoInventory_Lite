@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform, TextInput, Image, useWindowDimensions, Modal } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import TicketModal from '../components/TicketModal';
-import { globalActiveOrders, globalRecipes, processProductionBatch, updateStock, registerShiftSale, globalTables, globalSettings, globalDirectory, addContactToGlobal, recordCompletedOrder, globalOrderHistory, pushOrderToCloud, pushTableToCloud, persistData } from '../store/mockDb';
+import { globalActiveOrders, globalRecipes, processProductionBatch, updateStock, registerShiftSale, globalTables, globalSettings, updateExchangeRate, globalDirectory, addContactToGlobal, recordCompletedOrder, globalOrderHistory, pushOrderToCloud, pushTableToCloud, persistData } from '../store/mockDb';
 
 // Paleta de colores Dark Theme
 const COLORS = {
@@ -27,7 +27,18 @@ export default function PosOrderingScreen({ route, navigation }) {
   const [checkoutVisible, setCheckoutVisible] = useState(false);
   const [payCurrency, setPayCurrency] = useState('USD');
   const [payMethod, setPayMethod] = useState('');
-  const [exchangeRate, setExchangeRate] = useState(globalSettings.exchangeRate);
+  const [exchangeRate, setExchangeRate] = useState(globalSettings.exchangeRate || '');
+
+  useEffect(() => {
+    const handleSyncRate = (e) => {
+      const r = e?.detail || globalSettings.exchangeRate;
+      if (r) setExchangeRate(r.toString());
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('RESTOSYS_RATE_CHANGED', handleSyncRate);
+      return () => window.removeEventListener('RESTOSYS_RATE_CHANGED', handleSyncRate);
+    }
+  }, []);
     const [clientName, setClientName] = useState('');
   const [clientId, setClientId] = useState('');
 
@@ -466,6 +477,9 @@ export default function PosOrderingScreen({ route, navigation }) {
   };
 
   const handleOpenCheckout = () => {
+    if (globalSettings.exchangeRate) {
+      setExchangeRate(globalSettings.exchangeRate);
+    }
     if (order) {
       if (order.customerName && order.customerName !== 'Cliente General') {
         setClientName(order.customerName);
@@ -981,7 +995,10 @@ export default function PosOrderingScreen({ route, navigation }) {
                     <TextInput 
                       style={{ backgroundColor: COLORS.bg, color: COLORS.text, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, outlineStyle: 'none', fontSize: 13, fontWeight: 'bold' }} 
                       value={exchangeRate} 
-                      onChangeText={setExchangeRate} 
+                      onChangeText={(val) => {
+                        setExchangeRate(val);
+                        updateExchangeRate(val);
+                      }} 
                       keyboardType="numeric"
                     />
                   </View>

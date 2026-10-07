@@ -186,6 +186,14 @@ export const pushZReportToCloud = (report) => {
   }
 };
 
+export const pushExchangeRateToCloud = (rate) => {
+  if (Platform.OS === 'web') {
+    import('../services/supabaseService').then(({ supabaseService }) => {
+      if (supabaseService && supabaseService.pushExchangeRate) supabaseService.pushExchangeRate(rate);
+    }).catch(() => {});
+  }
+};
+
 export const openShift = (cash = 0) => {
   globalShift.isOpen = true;
   globalShift.openingCash = Number(cash) || 0;
@@ -564,18 +572,35 @@ export const updateMasterPin = (currentPin, newPin) => {
 export const RATE_STORAGE_KEY = 'RESTOSYS_EXCHANGE_RATE_V1';
 
 export const globalSettings = { 
-  exchangeRate: (Platform.OS === 'web' && typeof localStorage !== 'undefined' && localStorage.getItem(RATE_STORAGE_KEY)) || '40.00' 
+  exchangeRate: (Platform.OS === 'web' && typeof localStorage !== 'undefined' && localStorage.getItem(RATE_STORAGE_KEY)) || '' 
 };
+
+let rateDebounceTimer = null;
 
 export const updateExchangeRate = (rate) => {
   if (rate !== undefined && rate !== null) {
-    globalSettings.exchangeRate = rate.toString();
+    const rateStr = rate.toString().trim();
+    globalSettings.exchangeRate = rateStr;
     if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
       try {
-        localStorage.setItem(RATE_STORAGE_KEY, rate.toString());
+        localStorage.setItem(RATE_STORAGE_KEY, rateStr);
       } catch (e) {}
     }
     persistData();
+
+    // Notificar en vivo a toda la interfaz
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('RESTOSYS_RATE_CHANGED', { detail: rateStr }));
+    }
+
+    // Sincronizar hacia Supabase Nube con debounce para no saturar al escribir
+    if (rateDebounceTimer) clearTimeout(rateDebounceTimer);
+    rateDebounceTimer = setTimeout(() => {
+      const parsed = parseFloat(rateStr);
+      if (!isNaN(parsed) && parsed > 0) {
+        pushExchangeRateToCloud(rateStr);
+      }
+    }, 400);
   }
 };
 
@@ -611,7 +636,7 @@ export const loadData = () => {
 
       const saved = localStorage.getItem(STORAGE_KEY);
       // Respaldo secundario para la tasa
-      if (saved && (!globalSettings.exchangeRate || globalSettings.exchangeRate === '40.00')) {
+      if (saved && !globalSettings.exchangeRate) {
         try {
           const parsed = JSON.parse(saved);
           if (parsed.globalSettings && parsed.globalSettings.exchangeRate) {
