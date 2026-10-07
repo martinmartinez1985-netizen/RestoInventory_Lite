@@ -98,35 +98,44 @@ export default function AppNavigator() {
             headerTitle: '', // Se usa headerLeft en lugar de headerTitle para pegarlo a la izquierda
             headerLeft: () => (
               <TouchableOpacity 
-                style={{ flexDirection: 'row', alignItems: 'center', marginLeft: isSmallMobile ? 6 : 15 }} 
+                style={{ flexDirection: 'row', alignItems: 'center', marginLeft: isSmallMobile ? 8 : 15 }} 
                 onPress={() => navigation.navigate('Dashboard')}
               >
                 <Image 
                   source={require('../../assets/logo.png')} 
-                  style={{ height: isSmallMobile ? 30 : 40, width: isSmallMobile ? 95 : 140, resizeMode: 'contain' }} 
+                  style={{ height: isSmallMobile ? 32 : 40, width: isSmallMobile ? 95 : 135, resizeMode: 'contain' }} 
                 />
               </TouchableOpacity>
             ),
             headerRight: () => (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: isSmallMobile ? 6 : 15, gap: isSmallMobile ? 6 : 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: isSmallMobile ? 8 : 15, gap: isSmallMobile ? 8 : 10 }}>
                 
-                {/* Tasa del Día Pill */}
+                {/* Tasa del Día Pill - Compacto y Proporcionado */}
                 <View style={{ 
                   flexDirection: 'row', 
                   alignItems: 'center', 
-                  backgroundColor: '#e6f4ea', 
-                  paddingHorizontal: isSmallMobile ? 6 : 10, 
-                  paddingVertical: isSmallMobile ? 3 : 4, 
-                  borderRadius: 20,
+                  backgroundColor: '#ecfdf5', 
+                  paddingHorizontal: isSmallMobile ? 8 : 12, 
+                  height: isSmallMobile ? 32 : 36,
+                  borderRadius: 18,
                   borderWidth: 1,
                   borderColor: '#a7f3d0'
                 }}>
-                  <MaterialCommunityIcons name="currency-usd" size={isSmallMobile ? 12 : 14} color="#10b981" />
+                  <MaterialCommunityIcons name="currency-usd" size={isSmallMobile ? 14 : 16} color="#059669" />
                   {!isSmallMobile && (
-                    <Text style={{ fontSize: 12, color: '#10b981', fontWeight: 'bold', marginLeft: 2 }}>TASA:</Text>
+                    <Text style={{ fontSize: 12, color: '#059669', fontWeight: 'bold', marginLeft: 1 }}>TASA:</Text>
                   )}
                   <TextInput 
-                    style={{ fontSize: isSmallMobile ? 12 : 13, fontWeight: 'bold', color: '#047857', minWidth: isSmallMobile ? 36 : 45, outlineStyle: 'none', marginLeft: 2}}
+                    style={{ 
+                      fontSize: isSmallMobile ? 13 : 13, 
+                      fontWeight: '800', 
+                      color: '#065f46', 
+                      width: isSmallMobile ? 46 : 56, 
+                      textAlign: 'center', 
+                      outlineStyle: 'none',
+                      padding: 0,
+                      marginHorizontal: 2
+                    }}
                     value={rateText}
                     onChangeText={(val) => {
                       setRateText(val);
@@ -134,7 +143,9 @@ export default function AppNavigator() {
                     }}
                     keyboardType="numeric"
                     placeholder="0.00"
+                    placeholderTextColor="#6ee7b7"
                   />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#059669' }}>Bs</Text>
                 </View>
 
                 {/* Dropdown sucursal - oculto en modo celular */}
@@ -157,42 +168,42 @@ export default function AppNavigator() {
                   </View>
                 )}
 
-                {/* Botón Usuario Activo / Cambiar */}
-                <TouchableOpacity 
-                  style={{ 
-                    flexDirection: 'row', 
-                    alignItems: 'center',
-                    backgroundColor: '#f1f5f9',
-                    paddingHorizontal: isSmallMobile ? 6 : 10,
-                    paddingVertical: isSmallMobile ? 4 : 5,
-                    borderRadius: 20,
-                    borderWidth: 1,
-                    borderColor: '#cbd5e1'
-                  }}
-                  onPress={handleLockSession}
-                  title="Clic para cambiar operador o bloquear sesión"
-                >
-                  <View style={{
-                    backgroundColor: globalCurrentUser?.role === 'owner' ? '#e11d48' : globalCurrentUser?.role === 'admin' ? '#8b5cf6' : globalCurrentUser?.role === 'cook' ? '#d97706' : '#0284c7',
-                    width: isSmallMobile ? 22 : 24,
-                    height: isSmallMobile ? 22 : 24,
-                    borderRadius: 12,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    marginRight: isSmallMobile ? 0 : 6
-                  }}>
-                    <MaterialCommunityIcons 
-                      name={globalCurrentUser?.role === 'owner' ? 'shield-crown' : globalCurrentUser?.role === 'admin' ? 'shield-account' : globalCurrentUser?.role === 'cook' ? 'chef-hat' : 'account'} 
-                      size={isSmallMobile ? 12 : 14} 
-                      color="#ffffff" 
-                    />
-                  </View>
-                  {!isSmallMobile && (
+                {/* Botón Usuario Activo / Cambiar - solo en PC/Tablet para no sobrecargar el celular */}
+                {!isSmallMobile && (
+                  <TouchableOpacity 
+                    style={{ 
+                      flexDirection: 'row', 
+                      alignItems: 'center',
+                      backgroundColor: '#f1f5f9',
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                      borderRadius: 20,
+                      borderWidth: 1,
+                      borderColor: '#cbd5e1'
+                    }}
+                    onPress={handleLockSession}
+                    title="Clic para cambiar operador o bloquear sesión"
+                  >
+                    <View style={{
+                      backgroundColor: globalCurrentUser?.role === 'owner' ? '#e11d48' : globalCurrentUser?.role === 'admin' ? '#8b5cf6' : globalCurrentUser?.role === 'cook' ? '#d97706' : '#0284c7',
+                      width: 24,
+                      height: 24,
+                      borderRadius: 12,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      marginRight: 6
+                    }}>
+                      <MaterialCommunityIcons 
+                        name={globalCurrentUser?.role === 'owner' ? 'shield-crown' : globalCurrentUser?.role === 'admin' ? 'shield-account' : globalCurrentUser?.role === 'cook' ? 'chef-hat' : 'account'} 
+                        size={14} 
+                        color="#ffffff" 
+                      />
+                    </View>
                     <Text style={{ fontSize: 13, color: '#1e293b', fontWeight: 'bold' }}>
                       {globalCurrentUser?.role === 'owner' ? '🛡️ Sistema' : (globalCurrentUser?.name || 'Usuario').split(' ')[0]}
                     </Text>
-                  )}
-                </TouchableOpacity>
+                  </TouchableOpacity>
+                )}
 
                 {/* Botón Salir / Bloquear */}
                 <TouchableOpacity 
@@ -200,15 +211,17 @@ export default function AppNavigator() {
                     flexDirection: 'row', 
                     alignItems: 'center', 
                     backgroundColor: '#fee2e2', 
-                    paddingHorizontal: isSmallMobile ? 8 : 10, 
-                    paddingVertical: isSmallMobile ? 5 : 6, 
+                    paddingHorizontal: isSmallMobile ? 9 : 12, 
+                    height: isSmallMobile ? 32 : 36,
                     borderRadius: 18,
                     borderWidth: 1,
-                    borderColor: '#fca5a5'
+                    borderColor: '#fca5a5',
+                    justifyContent: 'center'
                   }}
                   onPress={handleLockSession}
+                  title="Bloquear sesión / Cambiar operador"
                 >
-                  <MaterialCommunityIcons name="lock-outline" size={14} color="#ef4444" style={!isSmallMobile ? { marginRight: 4 } : {}} />
+                  <MaterialCommunityIcons name="lock-outline" size={isSmallMobile ? 15 : 16} color="#ef4444" style={!isSmallMobile ? { marginRight: 4 } : {}} />
                   {!isSmallMobile && (
                     <Text style={{ fontSize: 12, color: '#ef4444', fontWeight: 'bold' }}>Bloquear</Text>
                   )}
