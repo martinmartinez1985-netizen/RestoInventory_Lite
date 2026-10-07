@@ -482,15 +482,27 @@ export const supabaseService = {
         updated_at: new Date().toISOString()
       }], { onConflict: 'key' });
 
-      const rows = users.map(u => ({
-        id: u.id,
-        name: u.name,
-        username: u.username,
-        pin: u.pin,
-        role: u.role || 'cashier',
-        created_at: new Date().toISOString()
-      }));
-      await supabase.from('users').upsert(rows);
+      for (const u of users) {
+        try {
+          const { data: existing } = await supabase.from('users').select('id').eq('username', u.username).maybeSingle();
+          if (existing) {
+            await supabase.from('users').update({
+              name: u.name,
+              pin: u.pin,
+              role: u.role || 'cashier'
+            }).eq('username', u.username);
+          } else {
+            await supabase.from('users').insert([{
+              id: u.id,
+              name: u.name,
+              username: u.username,
+              pin: u.pin,
+              role: u.role || 'cashier',
+              created_at: new Date().toISOString()
+            }]);
+          }
+        } catch (e) {}
+      }
       console.log(`☁️ ${users.length} usuarios y sus claves sincronizados en Supabase.`);
     } catch (e) {
       console.warn("Error push users:", e.message);
