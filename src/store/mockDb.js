@@ -182,6 +182,16 @@ export const pushTableToCloud = (table) => {
   }
 };
 
+export const deleteTableFromCloud = (tableId) => {
+  if (Platform.OS === 'web') {
+    import('../config/supabase').then(({ supabase }) => {
+      if (supabase) {
+        supabase.from('tables').delete().eq('id', tableId);
+      }
+    }).catch(() => {});
+  }
+};
+
 export const pushShiftToCloud = () => {
   if (Platform.OS === 'web') {
     import('../services/supabaseService').then(({ supabaseService }) => {
@@ -320,12 +330,131 @@ export const closeShift = (actualCash, discrepancies) => {
 
 // --- RESTAURANT POS MODULE ---
 
-export const globalTables = Array.from({ length: 12 }, (_, i) => ({
-  id: `T${i + 1}`,
-  name: `Mesa ${i + 1}`,
-  status: 'free', // 'free', 'occupied', 'billed'
-  capacity: i < 4 ? 2 : (i < 8 ? 4 : 6)
-}));
+export const DEFAULT_TABLES = [
+  { id: 'T1', name: 'Mesa 1', status: 'free', capacity: 4, area: 'main' },
+  { id: 'T2', name: 'Mesa 2', status: 'free', capacity: 4, area: 'top' },
+  { id: 'T3', name: 'Mesa 3', status: 'free', capacity: 4, area: 'main' },
+  { id: 'T4', name: 'Mesa 4', status: 'free', capacity: 4, area: 'top' },
+  { id: 'T5', name: 'Mesa 5', status: 'free', capacity: 4, area: 'top' },
+  { id: 'T6', name: 'Mesa 6', status: 'free', capacity: 4, area: 'bottom' },
+  { id: 'T7', name: 'Mesa 7', status: 'free', capacity: 4, area: 'bottom' },
+  { id: 'T8', name: 'Mesa 8', status: 'free', capacity: 2, area: 'side' },
+  { id: 'T9', name: 'Mesa 9', status: 'free', capacity: 2, area: 'side' },
+];
+
+export const globalTables = DEFAULT_TABLES.map(t => ({ ...t }));
+
+export const addTemporaryTable = (customName, capacity = 4) => {
+  const existingNums = globalTables
+    .map(t => parseInt(t.id.replace('T', ''), 10))
+    .filter(n => !isNaN(n));
+  const nextNum = existingNums.length > 0 ? Math.max(...existingNums) + 1 : 10;
+  const newId = `T${nextNum}`;
+  const table = {
+    id: newId,
+    name: customName && customName.trim() ? customName.trim() : `Mesa ${nextNum} (Extra)`,
+    status: 'free',
+    capacity: Number(capacity) || 4,
+    area: 'extra',
+    isTemporary: true
+  };
+  globalTables.push(table);
+  persistData();
+  pushTableToCloud(table);
+  return table;
+};
+
+export const removeTemporaryTable = (tableId) => {
+  const idx = globalTables.findIndex(t => t.id === tableId);
+  if (idx !== -1) {
+    globalTables.forEach(t => {
+      if (t.linkedTo === tableId) {
+        t.linkedTo = null;
+        t.status = 'free';
+        pushTableToCloud(t);
+      }
+    });
+    globalTables.splice(idx, 1);
+    persistData();
+    deleteTableFromCloud(tableId);
+    return true;
+  }
+  return false;
+};
+
+export const joinTables = (primaryTableId, secondaryTableId) => {
+  if (primaryTableId === secondaryTableId) return false;
+  const primary = globalTables.find(t => t.id === primaryTableId);
+  const secondary = globalTables.find(t => t.id === secondaryTableId);
+  if (!primary || !secondary) return false;
+
+  secondary.linkedTo = primaryTableId;
+  secondary.status = 'occupied';
+
+  let primaryOrder = globalActiveOrders.find(o => o.tableId === primaryTableId && o.status !== 'paid');
+  const secondaryOrder = globalActiveOrders.find(o => o.tableId === secondaryTableId && o.status !== 'paid');
+
+  if (!primaryOrder) {
+    primaryOrder = createOrder('dine_in', primaryTableId, `${primary.name} + ${secondary.name}`);
+  } else {
+    if (!primaryOrder.customerName || !primaryOrder.customerName.includes(secondary.name)) {
+      primaryOrder.customerName = `${primaryOrder.customerName || primary.name} + ${secondary.name}`;
+    }
+  }
+
+  if (secondaryOrder) {
+    if (secondaryOrder.items && secondaryOrder.items.length > 0) {
+      primaryOrder.items.push(...secondaryOrder.items);
+      primaryOrder.total = primaryOrder.items.reduce((sum, it) => sum + (it.price * it.qty), 0);
+    }
+    const sIdx = globalActiveOrders.findIndex(o => o.id === secondaryOrder.id);
+    if (sIdx !== -1) globalActiveOrders.splice(sIdx, 1);
+    deleteOrderFromCloud(secondaryOrder.id);
+  }
+
+  primary.status = 'occupied';
+  persistData();
+  pushTableToCloud(primary);
+  pushTableToCloud(secondary);
+  pushOrderToCloud(primaryOrder);
+  return true;
+};
+
+export const unjoinTable = (tableId) => {
+  const table = globalTables.find(t => t.id === tableId);
+  if (!table || !table.linkedTo) return false;
+
+  const masterId = table.linkedTo;
+  table.linkedTo = null;
+  table.status = 'free';
+
+  const masterOrder = globalActiveOrders.find(o => o.tableId === masterId && o.status !== 'paid');
+  if (masterOrder && masterOrder.customerName && masterOrder.customerName.includes(table.name)) {
+    masterOrder.customerName = masterOrder.customerName.replace(` + ${table.name}`, '').replace(`${table.name} + `, '');
+    pushOrderToCloud(masterOrder);
+  }
+
+  persistData();
+  pushTableToCloud(table);
+  return true;
+};
+
+export const freeTableAndLinked = (tableId) => {
+  if (!tableId) return;
+  const t = globalTables.find(tbl => tbl.id === tableId);
+  if (t) {
+    t.status = 'free';
+    pushTableToCloud(t);
+  }
+  const linked = globalTables.filter(tbl => tbl.linkedTo === tableId);
+  linked.forEach(lt => {
+    lt.status = 'free';
+    lt.linkedTo = null;
+    pushTableToCloud(lt);
+  });
+  persistData();
+};
+
 
 export const globalActiveOrders = [];
 export const globalOrderHistory = [];
@@ -767,7 +896,30 @@ export const loadData = () => {
         if (parsed.globalWaste) { globalWaste.length = 0; globalWaste.push(...parsed.globalWaste); }
         if (parsed.globalShift) { Object.assign(globalShift, parsed.globalShift); }
         if (parsed.globalZReports) { globalZReports.length = 0; globalZReports.push(...parsed.globalZReports); }
-        if (parsed.globalTables) { globalTables.length = 0; globalTables.push(...parsed.globalTables); }
+        if (parsed.globalTables && Array.isArray(parsed.globalTables)) {
+          globalTables.length = 0;
+          const cleaned = parsed.globalTables.filter(t => {
+            const num = parseInt(t.id.replace('T', ''), 10);
+            if (!isNaN(num) && num <= 9) return true;
+            if (t.isTemporary) return true;
+            const hasOrder = parsed.globalActiveOrders?.some(o => o.tableId === t.id && o.status !== 'paid');
+            return Boolean(hasOrder);
+          });
+          DEFAULT_TABLES.forEach(def => {
+            const existing = cleaned.find(t => t.id === def.id);
+            if (!existing) {
+              cleaned.push({ ...def });
+            } else {
+              if (!existing.area) existing.area = def.area;
+            }
+          });
+          cleaned.sort((a, b) => {
+            const numA = parseInt(a.id.replace('T', ''), 10) || 999;
+            const numB = parseInt(b.id.replace('T', ''), 10) || 999;
+            return numA - numB;
+          });
+          globalTables.push(...cleaned);
+        }
         if (parsed.globalActiveOrders) { globalActiveOrders.length = 0; globalActiveOrders.push(...parsed.globalActiveOrders); }
         if (parsed.globalOrderHistory) { globalOrderHistory.length = 0; globalOrderHistory.push(...parsed.globalOrderHistory); }
         if (parsed.globalUsers && parsed.globalUsers.length > 0) { 
@@ -978,6 +1130,12 @@ export const recordCompletedOrder = (order, paymentInfo = {}) => {
       table.status = 'free';
       pushTableToCloud(table);
     }
+    const linked = globalTables.filter(t => t.linkedTo === order.tableId);
+    linked.forEach(lt => {
+      lt.status = 'free';
+      lt.linkedTo = null;
+      pushTableToCloud(lt);
+    });
   }
 
   persistData();

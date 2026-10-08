@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform, TextInput, Image, useWindowDimensions, Modal } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import TicketModal from '../components/TicketModal';
-import { globalActiveOrders, globalRecipes, processProductionBatch, updateStock, registerShiftSale, globalTables, globalSettings, updateExchangeRate, globalDirectory, addContactToGlobal, recordCompletedOrder, globalOrderHistory, pushOrderToCloud, pushTableToCloud, persistData, deleteOrderFromCloud } from '../store/mockDb';
+import { globalActiveOrders, globalRecipes, processProductionBatch, updateStock, registerShiftSale, globalTables, globalSettings, updateExchangeRate, globalDirectory, addContactToGlobal, recordCompletedOrder, globalOrderHistory, pushOrderToCloud, pushTableToCloud, persistData, deleteOrderFromCloud, freeTableAndLinked } from '../store/mockDb';
 
 // Paleta de colores Dark Theme
 const COLORS = {
@@ -268,11 +268,7 @@ export default function PosOrderingScreen({ route, navigation }) {
       const idx = globalActiveOrders.findIndex(o => o.id === order.id);
       if (idx !== -1) globalActiveOrders.splice(idx, 1);
       if (order.type === 'dine_in' && order.tableId) {
-        const t = globalTables.find(tbl => tbl.id === order.tableId);
-        if (t) {
-          t.status = 'free';
-          pushTableToCloud(t);
-        }
+        freeTableAndLinked(order.tableId);
       }
       persistData();
     }
@@ -384,11 +380,7 @@ export default function PosOrderingScreen({ route, navigation }) {
       order.items = order.items.filter(i => i !== item);
     }
     if (order.items.length === 0 && order.type === 'dine_in' && order.tableId) {
-      const t = globalTables.find(tbl => tbl.id === order.tableId);
-      if (t) {
-        t.status = 'free';
-        pushTableToCloud(t);
-      }
+      freeTableAndLinked(order.tableId);
     }
     recalcTotal();
     persistData();
@@ -404,11 +396,7 @@ export default function PosOrderingScreen({ route, navigation }) {
     
     order.items = order.items.filter(i => i !== item);
     if (order.items.length === 0 && order.type === 'dine_in' && order.tableId) {
-      const t = globalTables.find(tbl => tbl.id === order.tableId);
-      if (t) {
-        t.status = 'free';
-        pushTableToCloud(t);
-      }
+      freeTableAndLinked(order.tableId);
     }
     recalcTotal();
     persistData();
@@ -439,11 +427,7 @@ export default function PosOrderingScreen({ route, navigation }) {
 
       // 2. Liberar mesa si es dine_in
       if (order.type === 'dine_in' && order.tableId) {
-        const t = globalTables.find(tbl => tbl.id === order.tableId);
-        if (t) {
-          t.status = 'free';
-          pushTableToCloud(t);
-        }
+        freeTableAndLinked(order.tableId);
       }
 
       // 3. Eliminar de globalActiveOrders
@@ -517,12 +501,8 @@ export default function PosOrderingScreen({ route, navigation }) {
       });
     }
 
-    if (order.type === 'dine_in') {
-      const table = globalTables.find(t => t.id === order.tableId);
-      if (table) {
-        table.status = 'free';
-        pushTableToCloud(table);
-      }
+    if (order.type === 'dine_in' && order.tableId) {
+      freeTableAndLinked(order.tableId);
     }
 
     setCheckoutVisible(false);
