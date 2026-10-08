@@ -522,23 +522,24 @@ export default function BillingScreen({ navigation }) {
               <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
                 <View style={[styles.floorPlanCanvas, isMobile && { minWidth: 580 }]}>
                   
-                  {/* ====== COLUMNA IZQUIERDA (PASILLO LATERAL: M9, M8, CAJA) ====== */}
+                  {/* ====== COLUMNA IZQUIERDA (PASILLO LATERAL: ENTRADA ARRIBA, M9, M8) ====== */}
                   <View style={styles.sideCorridorColumn}>
-                    {/* Mesa 9 (Arriba) */}
+                    {/* ENTRADA (ARRIBA EN EL PASILLO CERCA DE MESA 9 Y MESA 5) */}
+                    <View style={styles.entranceRowTop}>
+                      <View style={styles.doorBox}>
+                        <MaterialCommunityIcons name="door-open" size={16} color="#047857" />
+                        <Text style={styles.doorText}>ENTRADA</Text>
+                      </View>
+                    </View>
+
+                    {/* Mesa 9 */}
                     <View style={styles.tableSlot}>
                       {renderTableCard(t9, styles.floorTableCard)}
                     </View>
 
-                    {/* Mesa 8 (Abajo) */}
+                    {/* Mesa 8 */}
                     <View style={styles.tableSlot}>
                       {renderTableCard(t8, styles.floorTableCard)}
-                    </View>
-
-                    {/* ZONA DE CAJA */}
-                    <View style={styles.cashierBox}>
-                      <MaterialCommunityIcons name="cash-register" size={20} color="#1e3a8a" />
-                      <Text style={styles.cashierTitle}>CAJA</Text>
-                      <Text style={styles.cashierSubtitle}>Cobro / Arqueo</Text>
                     </View>
                   </View>
 
@@ -593,11 +594,14 @@ export default function BillingScreen({ navigation }) {
                       </View>
                     </View>
 
-                    {/* ENTRADA */}
-                    <View style={styles.entranceRow}>
-                      <View style={styles.doorBox}>
-                        <MaterialCommunityIcons name="door-open" size={16} color="#047857" />
-                        <Text style={styles.doorText}>ENTRADA</Text>
+                    {/* ZONA DE CAJA (ABAJO DONDE ESTABA ENTRADA) */}
+                    <View style={styles.cashierBottomRow}>
+                      <View style={styles.cashierBox}>
+                        <MaterialCommunityIcons name="cash-register" size={20} color="#1e3a8a" />
+                        <View style={{ marginLeft: 8 }}>
+                          <Text style={styles.cashierTitle}>CAJA</Text>
+                          <Text style={styles.cashierSubtitle}>Cobro / Arqueo</Text>
+                        </View>
                       </View>
                     </View>
 
@@ -931,7 +935,7 @@ const styles = StyleSheet.create({
   tabText: { marginLeft: 6, fontSize: 12.5, fontWeight: 'bold', color: '#64748b' },
   tabTextActive: { color: '#fff' },
 
-  contentScroll: { paddingBottom: 35 },
+  contentScroll: { paddingBottom: 180 },
 
   // ================= PLANO ARQUITECTÓNICO COMPACTO =================
   floorPlanWrapper: { alignItems: 'center' },
@@ -962,26 +966,37 @@ const styles = StyleSheet.create({
     ...Platform.select({ web: { boxShadow: '0px 4px 16px rgba(15, 23, 42, 0.05)' } })
   },
 
-  // Columna Izquierda (Pasillo con M9, M8, Caja)
+  // Columna Izquierda (Pasillo con ENTRADA ARRIBA, M9, M8)
   sideCorridorColumn: {
     width: 130,
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
+    gap: 10,
     paddingRight: 10
   },
 
+  entranceRowTop: {
+    marginBottom: 4,
+    alignItems: 'flex-start'
+  },
+
+  cashierBottomRow: {
+    marginTop: 10,
+    alignItems: 'flex-start',
+    paddingLeft: 6
+  },
+
   cashierBox: {
-    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1.5,
     borderColor: '#93c5fd',
-    borderRadius: 10,
+    borderRadius: 8,
     backgroundColor: '#eff6ff',
-    padding: 8,
-    alignItems: 'center',
-    height: 70,
-    justifyContent: 'center'
+    paddingHorizontal: 10,
+    paddingVertical: 6
   },
-  cashierTitle: { fontSize: 12, fontWeight: 'bold', color: '#1e3a8a', marginTop: 2 },
-  cashierSubtitle: { fontSize: 9.5, color: '#3b82f6', fontWeight: '600' },
+  cashierTitle: { fontSize: 11.5, fontWeight: 'bold', color: '#1e3a8a' },
+  cashierSubtitle: { fontSize: 9, color: '#3b82f6', fontWeight: '600' },
 
   // Muro vertical divisorio
   verticalWallContainer: {
