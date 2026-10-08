@@ -6,7 +6,7 @@ import { globalRawMaterials } from '../store/mockDb';
 const inventoryTypes = [
   { id: '1', title: 'Materia Prima', subtitle: 'Ingredientes básicos sin procesar', icon: 'leaf', color: '#10b981', route: 'RawMaterials' },
   { id: '2', title: 'En Proceso', subtitle: 'Preparaciones intermedias y salsas', icon: 'pot-mix', color: '#f59e0b', route: 'Wip' },
-  { id: '3', title: 'Producto Terminado', subtitle: 'Platos y productos listos para la venta', icon: 'food-cloche', color: '#3b82f6', route: 'FinishedGoods' },
+  { id: '3', title: 'Producto Terminado', subtitle: 'Platos y productos listos para la venta', icon: 'silverware-fork-knife', color: '#3b82f6', route: 'FinishedGoods' },
   { id: '4', title: 'Producción / Lotes', subtitle: 'Transformar materia prima en productos', icon: 'cogs', color: '#6366f1', route: 'Production' },
 ];
 

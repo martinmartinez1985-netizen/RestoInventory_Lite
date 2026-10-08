@@ -54,7 +54,7 @@ export default function ProductionScreen({ navigation }) {
                 onPress={() => setSelectedRecipeId(recipe.id)}
               >
                 <MaterialCommunityIcons 
-                  name={recipe.outputType === 'wip' ? 'pot-mix' : 'food-cloche'} 
+                  name={recipe.outputType === 'wip' ? 'pot-mix' : 'silverware-fork-knife'} 
                   size={24} 
                   color={selectedRecipeId === recipe.id ? '#fff' : '#64748b'} 
                   style={{marginBottom: 8}}
